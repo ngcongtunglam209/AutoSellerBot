@@ -4,7 +4,7 @@ const { config } = require('../config');
 function generateTransferContent() {
   const ts = Date.now().toString(36).toUpperCase();
   const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `ASB${ts}${rand}`;
+  return `SEVQR${ts}${rand}`;
 }
 
 function createOrder({ telegramId, accountId, amount }) {
@@ -114,3 +114,4 @@ module.exports = {
   getAllOrders,
   getStats,
 };
+

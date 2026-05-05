@@ -18,9 +18,9 @@ router.post('/sepay', async (req, res) => {
       return res.json({ success: false, message: 'No content' });
     }
 
-    const asbMatch = content.match(/ASB[A-Z0-9]+/);
+    const asbMatch = content.match(/SEVQR[A-Z0-9]+/);
     if (!asbMatch) {
-      return res.json({ success: false, message: 'Not an ASB order' });
+      return res.json({ success: false, message: 'Not a SEVQR order' });
     }
 
     const transferContent = asbMatch[0];
@@ -65,3 +65,4 @@ router.post('/sepay', async (req, res) => {
 });
 
 module.exports = { router, setBotInstance };
+
