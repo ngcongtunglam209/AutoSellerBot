@@ -1,10 +1,11 @@
 ﻿const { Telegraf } = require('telegraf');
-const { setBroadcastBot } = require('../services/broadcast');
 const { config } = require('../config');
+const { setBroadcastBot } = require('../services/broadcast');
 const { handleStart, handleHelp } = require('./handlers/start');
-const { handleShop, handleShopPage, handleBuyConfirm, handleCancelBuy } = require('./handlers/shop');
-const { handleConfirmBuy, handleCheckPayment } = require('./handlers/order');
+const { handleShop, handleShopPage, handleBuyConfirm: handleBuyConfirmShop, handleCancelBuy } = require('./handlers/shop');
+const { handleConfirmBuy, handleDoBuy, handleCancelBuy: handleCancelBuyOrder } = require('./handlers/order');
 const { handleHistory } = require('./handlers/history');
+const { handleWallet, handleDepositStart, handleDepositHistory, handleDepositTextInput } = require('./handlers/wallet');
 const {
   handleAdmin, handleAdminAdd, handleAdminInventory,
   handleAdminOrders, handleAdminStats, handleAdminDelete,
@@ -19,22 +20,30 @@ function createBot() {
   bot.command('help', handleHelp);
 
   bot.hears('🛒 Mua Tài Khoản', handleShop);
+  bot.hears('💳 Ví Của Tôi', handleWallet);
   bot.hears('📋 Lịch Sử Mua Hàng', handleHistory);
   bot.hears('ℹ️ Hỗ Trợ', handleHelp);
 
   bot.action(/^shop_page:(\d+)$/, handleShopPage);
-  bot.action(/^buy:(\d+)$/, handleBuyConfirm);
-  bot.action(/^confirm_buy:(\d+)$/, handleConfirmBuy);
-  bot.action(/^check_payment:(\d+)$/, handleCheckPayment);
-  bot.action('cancel_buy', handleCancelBuy);
+  bot.action(/^buy:(\d+)$/, handleConfirmBuy);
+  bot.action(/^do_buy:(\d+)$/, handleDoBuy);
+  bot.action('cancel_buy', handleCancelBuyOrder);
+
+  bot.action('deposit_start', handleDepositStart);
+  bot.action('deposit_history', handleDepositHistory);
 
   bot.action('admin_add', handleAdminAdd);
   bot.action('admin_inventory', handleAdminInventory);
   bot.action('admin_orders', handleAdminOrders);
   bot.action('admin_stats', handleAdminStats);
+  bot.action('admin_balance', handleAdminBalance);
   bot.action('admin_delete', handleAdminDelete);
 
-  bot.on('text', handleAdminTextInput);
+  bot.on('text', async (ctx, next) => {
+    await handleDepositTextInput(ctx, async () => {
+      await handleAdminTextInput(ctx, next);
+    });
+  });
 
   setBroadcastBot(bot);
 

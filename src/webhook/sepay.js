@@ -1,8 +1,6 @@
 ﻿const express = require('express');
 const router = express.Router();
-const { getOrderByTransferContent, markOrderPaid } = require('../services/order');
-const { markAccountSold } = require('../services/inventory');
-const { config } = require('../config');
+const { getDepositByContent, confirmDeposit } = require('../services/wallet');
 
 let botInstance = null;
 
@@ -13,50 +11,36 @@ function setBotInstance(bot) {
 router.post('/sepay', async (req, res) => {
   try {
     const { content, transferAmount, id: transactionId } = req.body;
+    if (!content) return res.json({ success: false, message: 'No content' });
 
-    if (!content) {
-      return res.json({ success: false, message: 'No content' });
-    }
+    const napMatch = content.match(/NAP[A-Z0-9]+/);
+    if (!napMatch) return res.json({ success: false, message: 'Not a NAP deposit' });
 
-    const asbMatch = content.match(/SEVQR[A-Z0-9]+/);
-    if (!asbMatch) {
-      return res.json({ success: false, message: 'Not a SEVQR order' });
-    }
+    const transferContent = napMatch[0];
+    const deposit = getDepositByContent(transferContent);
 
-    const transferContent = asbMatch[0];
-    const order = getOrderByTransferContent(transferContent);
-
-    if (!order) {
-      return res.json({ success: false, message: 'Order not found' });
-    }
-
-    if (order.status !== 'pending') {
-      return res.json({ success: false, message: `Order already ${order.status}` });
-    }
+    if (!deposit) return res.json({ success: false, message: 'Deposit not found' });
+    if (deposit.status !== 'pending') return res.json({ success: false, message: 'Already processed' });
 
     const paidAmount = parseInt(transferAmount) || 0;
-    if (paidAmount < order.amount) {
-      return res.json({ success: false, message: 'Insufficient amount' });
+    if (paidAmount < deposit.amount) return res.json({ success: false, message: 'Insufficient amount' });
+
+    const confirmed = confirmDeposit(deposit.id, paidAmount);
+
+    if (botInstance && deposit.telegram_id) {
+      const { getBalance } = require('../services/wallet');
+      const newBalance = getBalance(deposit.telegram_id);
+      await botInstance.telegram.sendMessage(
+        deposit.telegram_id,
+        `✅ *Nạp tiền thành công!*\n\n` +
+        `💰 Số tiền nhận: *${paidAmount.toLocaleString('vi-VN')}đ*\n` +
+        `💳 Số dư hiện tại: *${newBalance.toLocaleString('vi-VN')}đ*\n` +
+        `🧾 Mã GD: \`${transactionId || transferContent}\``,
+        { parse_mode: 'Markdown' }
+      );
     }
 
-    markOrderPaid(order.id);
-    if (order.account_id) markAccountSold(order.account_id);
-
-    if (botInstance && order.telegram_id) {
-      const msg =
-        `✅ *Thanh toán thành công!*\n\n` +
-        `📦 *Thông tin tài khoản:*\n` +
-        `🔑 Login: \`${order.login}\`\n` +
-        `🔒 Password: \`${order.password}\`\n` +
-        (order.note ? `📝 Ghi chú: ${order.note}\n` : '') +
-        `\n💰 Đã thanh toán: ${paidAmount.toLocaleString('vi-VN')}đ\n` +
-        `🧾 Mã GD: \`${transactionId || transferContent}\`\n\n` +
-        `Cảm ơn bạn đã mua hàng! 🎉`;
-
-      await botInstance.telegram.sendMessage(order.telegram_id, msg, { parse_mode: 'Markdown' });
-    }
-
-    console.log(`[Webhook] Order ${order.id} paid — account delivered to ${order.telegram_id}`);
+    console.log(`[Webhook] Deposit ${deposit.id} confirmed — ${paidAmount}đ for user ${deposit.telegram_id}`);
     return res.json({ success: true });
   } catch (err) {
     console.error('[Webhook] Error:', err.message);
@@ -65,4 +49,3 @@ router.post('/sepay', async (req, res) => {
 });
 
 module.exports = { router, setBotInstance };
-

@@ -5,6 +5,7 @@ const {
   getAllAccounts, countAvailable,
 } = require('../../services/inventory');
 const { getAllOrders, getStats } = require('../../services/order');
+const { adminAdjustBalance } = require('../../services/wallet');
 const { notifyAllUsers } = require('../../services/broadcast');
 
 const adminSessions = new Map();
@@ -36,6 +37,7 @@ async function handleAdmin(ctx) {
       [Markup.button.callback('📦 Xem kho hàng', 'admin_inventory')],
       [Markup.button.callback('📋 Đơn hàng gần đây', 'admin_orders')],
       [Markup.button.callback('📊 Thống kê', 'admin_stats')],
+      [Markup.button.callback('💳 Điều chỉnh số dư', 'admin_balance')],
     ]),
   });
 }
@@ -184,6 +186,24 @@ async function handleAdminTextInput(ctx, next) {
     return ctx.reply(reply, { parse_mode: 'Markdown' });
   }
 
+  if (session.step === 'adjust_balance') {
+    const parts = text.split('|');
+    if (parts.length !== 2) {
+      adminSessions.delete(userId);
+      return ctx.reply('❌ Sai định dạng. Dùng: telegram_id|số_tiền');
+    }
+    const targetId = parseInt(parts[0]);
+    const amount = parseInt(parts[1]);
+    if (isNaN(targetId) || isNaN(amount)) {
+      adminSessions.delete(userId);
+      return ctx.reply('❌ telegram_id hoặc số tiền không hợp lệ.');
+    }
+    adminAdjustBalance(targetId, amount);
+    adminSessions.delete(userId);
+    const sign = amount >= 0 ? '+' : '';
+    return ctx.reply(`✅ Đã ${sign}${amount.toLocaleString('vi-VN')}đ cho user ${targetId}.`);
+  }
+
   if (session.step === 'delete_account') {
     const id = parseInt(text);
     if (isNaN(id)) {
@@ -198,13 +218,29 @@ async function handleAdminTextInput(ctx, next) {
   return next();
 }
 
+async function handleAdminBalance(ctx) {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ Không có quyền');
+  await ctx.answerCbQuery();
+  adminSessions.set(ctx.from.id, { step: 'adjust_balance' });
+  await ctx.reply(
+    `💳 *Điều chỉnh số dư user*\n\n` +
+    `Nhập theo định dạng:\n\`telegram_id|số_tiền\`\n\n` +
+    `Ví dụ: \`123456789|50000\` (cộng 50k)\n` +
+    `Ví dụ: \`123456789|-20000\` (trừ 20k)\n\n` +
+    `Gửi /cancel để huỷ.`,
+    { parse_mode: 'Markdown' }
+  );
+}
+
 module.exports = {
   handleAdmin,
   handleAdminAdd,
   handleAdminInventory,
   handleAdminOrders,
   handleAdminStats,
+  handleAdminBalance,
   handleAdminDelete,
   handleAdminTextInput,
 };
+
 
