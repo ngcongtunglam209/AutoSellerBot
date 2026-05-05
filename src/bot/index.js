@@ -1,0 +1,46 @@
+﻿const { Telegraf } = require('telegraf');
+const { config } = require('../config');
+const { handleStart, handleHelp } = require('./handlers/start');
+const { handleShop, handleShopPage, handleBuyConfirm, handleCancelBuy } = require('./handlers/shop');
+const { handleConfirmBuy, handleCheckPayment } = require('./handlers/order');
+const { handleHistory } = require('./handlers/history');
+const {
+  handleAdmin, handleAdminAdd, handleAdminInventory,
+  handleAdminOrders, handleAdminStats, handleAdminDelete,
+  handleAdminTextInput,
+} = require('./handlers/admin');
+
+function createBot() {
+  const bot = new Telegraf(config.bot.token);
+
+  bot.command('start', handleStart);
+  bot.command('admin', handleAdmin);
+  bot.command('help', handleHelp);
+
+  bot.hears('🛒 Mua Tài Khoản', handleShop);
+  bot.hears('📋 Lịch Sử Mua Hàng', handleHistory);
+  bot.hears('ℹ️ Hỗ Trợ', handleHelp);
+
+  bot.action(/^shop_page:(\d+)$/, handleShopPage);
+  bot.action(/^buy:(\d+)$/, handleBuyConfirm);
+  bot.action(/^confirm_buy:(\d+)$/, handleConfirmBuy);
+  bot.action(/^check_payment:(\d+)$/, handleCheckPayment);
+  bot.action('cancel_buy', handleCancelBuy);
+
+  bot.action('admin_add', handleAdminAdd);
+  bot.action('admin_inventory', handleAdminInventory);
+  bot.action('admin_orders', handleAdminOrders);
+  bot.action('admin_stats', handleAdminStats);
+  bot.action('admin_delete', handleAdminDelete);
+
+  bot.on('text', handleAdminTextInput);
+
+  bot.catch((err, ctx) => {
+    console.error(`[Bot] Error for ${ctx.updateType}:`, err.message);
+    ctx.reply('❌ Có lỗi xảy ra. Vui lòng thử lại sau.').catch(() => {});
+  });
+
+  return bot;
+}
+
+module.exports = { createBot };
