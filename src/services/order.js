@@ -1,4 +1,5 @@
-﻿const db = require('../db/index');
+const db = require('../db/index');
+const { config } = require('../config');
 
 function createBulkOrderFromBalance({ telegramId, quantity }) {
   const tx = db.transaction(() => {
@@ -12,7 +13,15 @@ function createBulkOrderFromBalance({ telegramId, quantity }) {
     if (accounts.length === 0) throw new Error('OUT_OF_STOCK');
     if (accounts.length < quantity) throw new Error(`NOT_ENOUGH:${accounts.length}`);
 
-    const totalPrice = accounts.reduce((sum, a) => sum + a.price, 0);
+    const totalOriginal = accounts.reduce((sum, a) => sum + a.price, 0);
+
+    // Tính chiết khấu khi mua số lượng đủ điều kiện
+    const { minQty, discountPerItem } = config.discount;
+    const discountTotal = (quantity > minQty && discountPerItem > 0)
+      ? discountPerItem * quantity
+      : 0;
+    const totalPrice = totalOriginal - discountTotal;
+
     if (user.balance < totalPrice) throw new Error('INSUFFICIENT_BALANCE');
 
     db.prepare(`UPDATE users SET balance = balance - ? WHERE id = ?`).run(totalPrice, user.id);
@@ -28,7 +37,7 @@ function createBulkOrderFromBalance({ telegramId, quantity }) {
       orders.push({ orderId: result.lastInsertRowid, account });
     }
 
-    return { orders, totalPrice };
+    return { orders, totalPrice, totalOriginal, discountTotal };
   });
 
   return tx();

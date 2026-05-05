@@ -1,4 +1,4 @@
-﻿const { Telegraf } = require('telegraf');
+const { Telegraf } = require('telegraf');
 const { config } = require('../config');
 const { setBroadcastBot } = require('../services/broadcast');
 const { handleStart, handleHelp } = require('./handlers/start');
@@ -9,7 +9,7 @@ const { handleWallet, handleDepositStart, handleDepositHistory, handleDepositTex
 const {
   handleAdmin, handleAdminAdd, handleAdminInventory,
   handleAdminOrders, handleAdminStats, handleAdminBalance,
-  handleAdminDelete, handleAdminTextInput,
+  handleAdminDelete, handleAdminDiscount, handleAdminTextInput,
 } = require('./handlers/admin');
 
 function createBot() {
@@ -41,6 +41,7 @@ function createBot() {
   bot.action('admin_stats', handleAdminStats);
   bot.action('admin_balance', handleAdminBalance);
   bot.action('admin_delete', handleAdminDelete);
+  bot.action('admin_discount', handleAdminDiscount);
 
   bot.on('text', async (ctx, next) => {
     await handleDepositTextInput(ctx, async () => {

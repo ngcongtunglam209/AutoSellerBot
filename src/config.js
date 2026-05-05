@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 
 const config = {
   bot: {
@@ -18,6 +18,11 @@ const config = {
   },
   order: {
     expiryMinutes: parseInt(process.env.ORDER_EXPIRY_MINUTES) || 15,
+  },
+  discount: {
+    // Mua >= minQty thì được chiết khấu discountPerItem mỗi sản phẩm
+    minQty: parseInt(process.env.DISCOUNT_MIN_QTY) || 5,
+    discountPerItem: parseInt(process.env.DISCOUNT_PER_ITEM) || 0,
   },
 };
 

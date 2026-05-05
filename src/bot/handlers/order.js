@@ -1,4 +1,4 @@
-﻿const { Markup } = require('telegraf');
+const { Markup } = require('telegraf');
 const { getAccountById, getAvailableAccounts } = require('../../services/inventory');
 const { createOrderFromBalance, createBulkOrderFromBalance } = require('../../services/order');
 const { getBalance } = require('../../services/wallet');
@@ -114,15 +114,28 @@ async function handleConfirmBulkBuy(ctx) {
     );
   }
 
-  const totalPrice = selected.reduce((sum, a) => sum + a.price, 0);
+  const totalOriginal = selected.reduce((sum, a) => sum + a.price, 0);
+  const { minQty, discountPerItem } = config.discount;
+  const discountTotal = (qty > minQty && discountPerItem > 0)
+    ? discountPerItem * qty
+    : 0;
+  const totalPrice = totalOriginal - discountTotal;
+
   const balance = getBalance(telegramId);
   const lack = totalPrice - balance;
 
+  let priceText =
+    `💰 Tổng giá gốc: *${totalOriginal.toLocaleString('vi-VN')}đ*\n`;
+  if (discountTotal > 0) {
+    priceText +=
+      `🎁 Chiết khấu mua nhiều (>${minQty} sp): *-${discountTotal.toLocaleString('vi-VN')}đ*\n` +
+      `✨ Giá sau chiết khấu: *${totalPrice.toLocaleString('vi-VN')}đ*\n`;
+  }
+  priceText += `💳 Số dư của bạn: *${balance.toLocaleString('vi-VN')}đ*\n`;
+  priceText += (lack > 0 ? `⚠️ Thiếu: *${lack.toLocaleString('vi-VN')}đ*` : `✅ Số dư đủ`);
+
   await ctx.reply(
-    `📦 *Xác nhận mua ${qty} tài khoản*\n\n` +
-    `💰 Tổng giá: *${totalPrice.toLocaleString('vi-VN')}đ*\n` +
-    `💳 Số dư của bạn: *${balance.toLocaleString('vi-VN')}đ*\n` +
-    (lack > 0 ? `⚠️ Thiếu: *${lack.toLocaleString('vi-VN')}đ*` : `✅ Số dư đủ`),
+    `📦 *Xác nhận mua ${qty} tài khoản*\n\n` + priceText,
     {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard(
@@ -166,7 +179,7 @@ async function handleDoBuyBulk(ctx) {
     return ctx.reply('❌ Lỗi: ' + err.message);
   }
 
-  const { orders, totalPrice } = result;
+  const { orders, totalPrice, totalOriginal, discountTotal } = result;
   const newBalance = getBalance(telegramId);
   const username = ctx.from.username ? `@${ctx.from.username}` : `#${telegramId}`;
 
@@ -177,7 +190,13 @@ async function handleDoBuyBulk(ctx) {
     replyText += `🔒 Password: \`${account.password}\`\n`;
     if (account.note) replyText += `📝 ${account.note}\n`;
   }
-  replyText += `\n💰 Tổng đã thanh toán: *${totalPrice.toLocaleString('vi-VN')}đ*\n`;
+  replyText += `\n💰 Giá gốc: *${totalOriginal.toLocaleString('vi-VN')}đ*\n`;
+  if (discountTotal > 0) {
+    replyText += `🎁 Chiết khấu: *-${discountTotal.toLocaleString('vi-VN')}đ*\n`;
+    replyText += `✨ Thực trả: *${totalPrice.toLocaleString('vi-VN')}đ*\n`;
+  } else {
+    replyText += `💰 Tổng đã thanh toán: *${totalPrice.toLocaleString('vi-VN')}đ*\n`;
+  }
   replyText += `💳 Số dư còn lại: *${newBalance.toLocaleString('vi-VN')}đ*`;
 
   await ctx.reply(replyText, { parse_mode: 'Markdown' });
@@ -187,8 +206,9 @@ async function handleDoBuyBulk(ctx) {
     orders.map(({ orderId, account }) =>
       `#${orderId}: \`${account.login}\` — ${account.price.toLocaleString('vi-VN')}đ`
     ).join('\n') +
-    `\n\n💰 Tổng: *${totalPrice.toLocaleString('vi-VN')}đ*\n` +
-    `💳 Số dư còn lại của khách: ${newBalance.toLocaleString('vi-VN')}đ`
+    `\n\n💰 Giá gốc: *${totalOriginal.toLocaleString('vi-VN')}đ*` +
+    (discountTotal > 0 ? `\n🎁 Chiết khấu: *-${discountTotal.toLocaleString('vi-VN')}đ*\n✨ Thực thu: *${totalPrice.toLocaleString('vi-VN')}đ*` : `\n💰 Tổng: *${totalPrice.toLocaleString('vi-VN')}đ*`) +
+    `\n💳 Số dư còn lại của khách: ${newBalance.toLocaleString('vi-VN')}đ`
   );
 }
 

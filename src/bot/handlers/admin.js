@@ -1,4 +1,4 @@
-﻿const { Markup } = require('telegraf');
+const { Markup } = require('telegraf');
 const { config } = require('../../config');
 const {
   addAccountsBulk, deleteAccount,
@@ -30,7 +30,12 @@ async function handleAdmin(ctx) {
     `⏳ Đơn chờ: *${stats.pendingOrders}*\n` +
     `💰 Doanh thu: *${stats.totalRevenue.toLocaleString('vi-VN')}đ*`;
 
-  await ctx.reply(text, {
+  const { minQty, discountPerItem } = config.discount;
+  const discountInfo = discountPerItem > 0
+    ? `🎁 Chiết khấu: *-${discountPerItem.toLocaleString('vi-VN')}đ/sp* khi mua *>${minQty} sp*`
+    : `🎁 Chiết khấu: *Chưa bật*`;
+
+  await ctx.reply(text + '\n' + discountInfo, {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard([
       [Markup.button.callback('➕ Thêm account', 'admin_add')],
@@ -38,6 +43,7 @@ async function handleAdmin(ctx) {
       [Markup.button.callback('📋 Đơn hàng gần đây', 'admin_orders')],
       [Markup.button.callback('📊 Thống kê', 'admin_stats')],
       [Markup.button.callback('💳 Điều chỉnh số dư', 'admin_balance')],
+      [Markup.button.callback('🎁 Cài chiết khấu số lượng', 'admin_discount')],
     ]),
   });
 }
@@ -220,7 +226,46 @@ async function handleAdminTextInput(ctx, next) {
     return ctx.reply(`✅ Đã xoá tài khoản #${id} (nếu tồn tại và chưa bán).`);
   }
 
+  if (session.step === 'set_discount') {
+    const parts = text.split('|');
+    if (parts.length !== 2) {
+      adminSessions.delete(userId);
+      return ctx.reply('❌ Sai định dạng. Dùng: ngưỡng|chiết_khấu_mỗi_sp');
+    }
+    const newMinQty = parseInt(parts[0]);
+    const newDiscount = parseInt(parts[1]);
+    if (isNaN(newMinQty) || isNaN(newDiscount) || newMinQty < 1 || newDiscount < 0) {
+      adminSessions.delete(userId);
+      return ctx.reply('❌ Giá trị không hợp lệ. Ngưỡng phải >= 1, chiết khấu phải >= 0.');
+    }
+    config.discount.minQty = newMinQty;
+    config.discount.discountPerItem = newDiscount;
+    adminSessions.delete(userId);
+    const status = newDiscount > 0
+      ? `✅ Đã bật chiết khấu: mua *>${newMinQty} sp*, giảm *${newDiscount.toLocaleString('vi-VN')}đ/sp*.`
+      : `✅ Đã tắt chiết khấu.`;
+    return ctx.reply(status, { parse_mode: 'Markdown' });
+  }
+
   return next();
+}
+
+async function handleAdminDiscount(ctx) {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ Không có quyền');
+  await ctx.answerCbQuery();
+  const { minQty, discountPerItem } = config.discount;
+  adminSessions.set(ctx.from.id, { step: 'set_discount' });
+  await ctx.reply(
+    `🎁 *Cài chiết khấu mua số lượng nhiều*\n\n` +
+    `Hiện tại:\n` +
+    `• Ngưỡng: mua *>${minQty} sản phẩm*\n` +
+    `• Chiết khấu: *${discountPerItem.toLocaleString('vi-VN')}đ/sản phẩm*\n\n` +
+    `Nhập theo định dạng: \`ngưỡng|chiết_khấu_mỗi_sp\`\n\n` +
+    `Ví dụ: \`5|5000\` (mua >5 sp, giảm 5.000đ/sp)\n` +
+    `Đặt 0 để tắt chiết khấu: \`5|0\`\n\n` +
+    `Gửi /cancel để huỷ.`,
+    { parse_mode: 'Markdown' }
+  );
 }
 
 async function handleAdminBalance(ctx) {
@@ -245,6 +290,7 @@ module.exports = {
   handleAdminStats,
   handleAdminBalance,
   handleAdminDelete,
+  handleAdminDiscount,
   handleAdminTextInput,
 };
 
