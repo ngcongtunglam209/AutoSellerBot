@@ -5,6 +5,7 @@ const {
   getAllAccounts, countAvailable,
 } = require('../../services/inventory');
 const { getAllOrders, getStats } = require('../../services/order');
+const { notifyAllUsers } = require('../../services/broadcast');
 
 const adminSessions = new Map();
 
@@ -168,6 +169,13 @@ async function handleAdminTextInput(ctx, next) {
 
     if (valid.length > 0) {
       addAccountsBulk(valid);
+      const available = countAvailable();
+      notifyAllUsers(
+        `🔔 *HÀNG MỚI VỀ KHO!*\n\n` +
+        `📦 Vừa nhập thêm *${valid.length} tài khoản* mới.\n` +
+        `🛒 Kho hiện có: *${available} tài khoản*\n\n` +
+        `Nhấn để mua ngay: /start`
+      ).catch(() => {});
     }
 
     adminSessions.delete(userId);
@@ -199,3 +207,4 @@ module.exports = {
   handleAdminDelete,
   handleAdminTextInput,
 };
+

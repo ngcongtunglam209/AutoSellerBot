@@ -1,4 +1,5 @@
 ﻿const { Telegraf } = require('telegraf');
+const { setBroadcastBot } = require('../services/broadcast');
 const { config } = require('../config');
 const { handleStart, handleHelp } = require('./handlers/start');
 const { handleShop, handleShopPage, handleBuyConfirm, handleCancelBuy } = require('./handlers/shop');
@@ -35,6 +36,8 @@ function createBot() {
 
   bot.on('text', handleAdminTextInput);
 
+  setBroadcastBot(bot);
+
   bot.catch((err, ctx) => {
     console.error(`[Bot] Error for ${ctx.updateType}:`, err.message);
     ctx.reply('❌ Có lỗi xảy ra. Vui lòng thử lại sau.').catch(() => {});
@@ -44,3 +47,4 @@ function createBot() {
 }
 
 module.exports = { createBot };
+

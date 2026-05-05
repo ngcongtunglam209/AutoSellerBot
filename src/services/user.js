@@ -14,4 +14,9 @@ function getUserByTelegramId(telegramId) {
   return db.prepare(`SELECT * FROM users WHERE telegram_id = ?`).get(telegramId);
 }
 
-module.exports = { upsertUser, getUserByTelegramId };
+function getAllUsers() {
+  return db.prepare(`SELECT telegram_id FROM users`).all();
+}
+
+module.exports = { upsertUser, getUserByTelegramId, getAllUsers };
+
