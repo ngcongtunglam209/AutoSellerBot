@@ -2,6 +2,17 @@
 const { getAccountById } = require('../../services/inventory');
 const { createOrderFromBalance } = require('../../services/order');
 const { getBalance } = require('../../services/wallet');
+const { config } = require('../../config');
+
+let botInstance = null;
+function setOrderBot(bot) { botInstance = bot; }
+
+async function notifyAdmins(message) {
+  if (!botInstance) return;
+  for (const adminId of config.bot.adminIds) {
+    await botInstance.telegram.sendMessage(adminId, message, { parse_mode: 'Markdown' }).catch(() => {});
+  }
+}
 
 async function handleConfirmBuy(ctx) {
   const accountId = parseInt(ctx.match[1]);
@@ -62,6 +73,7 @@ async function handleDoBuy(ctx) {
 
   const { account, orderId } = result;
   const newBalance = getBalance(telegramId);
+  const username = ctx.from.username ? `@${ctx.from.username}` : `#${telegramId}`;
 
   await ctx.reply(
     `✅ *Mua hàng thành công! #${orderId}*\n\n` +
@@ -72,6 +84,14 @@ async function handleDoBuy(ctx) {
     `\n💳 Số dư còn lại: *${newBalance.toLocaleString('vi-VN')}đ*`,
     { parse_mode: 'Markdown' }
   );
+
+  await notifyAdmins(
+    `🛒 *ĐƠN HÀNG MỚI #${orderId}*\n\n` +
+    `👤 Khách: ${username}\n` +
+    `🔑 Account: \`${account.login}\`\n` +
+    `💰 Giá: *${account.price.toLocaleString('vi-VN')}đ*\n` +
+    `💳 Số dư còn lại của khách: ${newBalance.toLocaleString('vi-VN')}đ`
+  );
 }
 
 async function handleCancelBuy(ctx) {
@@ -79,4 +99,4 @@ async function handleCancelBuy(ctx) {
   await ctx.deleteMessage();
 }
 
-module.exports = { handleConfirmBuy, handleDoBuy, handleCancelBuy };
+module.exports = { handleConfirmBuy, handleDoBuy, handleCancelBuy, setOrderBot };

@@ -3,7 +3,7 @@ const { config } = require('../config');
 const { setBroadcastBot } = require('../services/broadcast');
 const { handleStart, handleHelp } = require('./handlers/start');
 const { handleShop, handleShopPage } = require('./handlers/shop');
-const { handleConfirmBuy, handleDoBuy, handleCancelBuy } = require('./handlers/order');
+const { handleConfirmBuy, handleDoBuy, handleCancelBuy, setOrderBot } = require('./handlers/order');
 const { handleHistory } = require('./handlers/history');
 const { handleWallet, handleDepositStart, handleDepositHistory, handleDepositTextInput } = require('./handlers/wallet');
 const {
@@ -46,6 +46,7 @@ function createBot() {
   });
 
   setBroadcastBot(bot);
+  setOrderBot(bot);
 
   bot.catch((err, ctx) => {
     console.error(`[Bot] Error for ${ctx.updateType}:`, err.message);
