@@ -13,8 +13,8 @@ router.post('/sepay', async (req, res) => {
     const { content, transferAmount, id: transactionId } = req.body;
     if (!content) return res.json({ success: false, message: 'No content' });
 
-    const napMatch = content.match(/NAP[A-Z0-9]+/);
-    if (!napMatch) return res.json({ success: false, message: 'Not a NAP deposit' });
+    const napMatch = content.match(/SEVQR[A-Z0-9]+/);
+    if (!napMatch) return res.json({ success: false, message: 'Not a SEVQR deposit' });
 
     const transferContent = napMatch[0];
     const deposit = getDepositByContent(transferContent);
@@ -49,3 +49,4 @@ router.post('/sepay', async (req, res) => {
 });
 
 module.exports = { router, setBotInstance };
+
