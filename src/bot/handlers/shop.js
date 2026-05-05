@@ -40,7 +40,11 @@ async function sendAccountList(ctx, accounts, page) {
     [Markup.button.callback(`#${acc.id} — ${acc.price.toLocaleString('vi-VN')}đ`, `buy:${acc.id}`)]
   );
 
-  const keyboard = Markup.inlineKeyboard([...accountButtons, navButtons.length ? navButtons : []].filter(r => r.length));
+  const bulkButton = [Markup.button.callback('🔢 Mua theo số lượng', 'buy_qty')];
+
+  const keyboard = Markup.inlineKeyboard(
+    [...accountButtons, navButtons.length ? navButtons : [], bulkButton].filter(r => r.length)
+  );
 
   if (ctx.callbackQuery) {
     await ctx.editMessageText(text, { parse_mode: 'Markdown', ...keyboard });
@@ -83,9 +87,32 @@ async function handleBuyConfirm(ctx) {
   );
 }
 
+async function handleBuyQuantity(ctx) {
+  await ctx.answerCbQuery();
+  const accounts = getAvailableAccounts();
+
+  if (accounts.length === 0) {
+    return ctx.reply('😔 Hiện tại kho hàng đã hết!');
+  }
+
+  const options = [1, 2, 3, 5, 10].filter(q => q <= accounts.length);
+  const rows = [];
+  for (let i = 0; i < options.length; i += 3) {
+    rows.push(options.slice(i, i + 3).map(q =>
+      Markup.button.callback(`${q} tài khoản`, `qty:${q}`)
+    ));
+  }
+  rows.push([Markup.button.callback('❌ Huỷ', 'cancel_buy')]);
+
+  await ctx.reply(
+    `🔢 *Chọn số lượng tài khoản muốn mua*\n\n📦 Kho còn: *${accounts.length} tài khoản*`,
+    { parse_mode: 'Markdown', ...Markup.inlineKeyboard(rows) }
+  );
+}
+
 async function handleCancelBuy(ctx) {
   await ctx.answerCbQuery('Đã huỷ');
   await ctx.deleteMessage();
 }
 
-module.exports = { handleShop, handleShopPage, handleBuyConfirm, handleCancelBuy };
+module.exports = { handleShop, handleShopPage, handleBuyConfirm, handleBuyQuantity, handleCancelBuy };

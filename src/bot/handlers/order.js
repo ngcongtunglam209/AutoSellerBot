@@ -1,6 +1,6 @@
 ﻿const { Markup } = require('telegraf');
-const { getAccountById } = require('../../services/inventory');
-const { createOrderFromBalance } = require('../../services/order');
+const { getAccountById, getAvailableAccounts } = require('../../services/inventory');
+const { createOrderFromBalance, createBulkOrderFromBalance } = require('../../services/order');
 const { getBalance } = require('../../services/wallet');
 const { config } = require('../../config');
 
@@ -94,9 +94,107 @@ async function handleDoBuy(ctx) {
   );
 }
 
+async function handleConfirmBulkBuy(ctx) {
+  const qty = parseInt(ctx.match[1]);
+  const telegramId = ctx.from.id;
+
+  await ctx.answerCbQuery();
+
+  const accounts = getAvailableAccounts();
+
+  if (accounts.length === 0) {
+    return ctx.reply('😔 Kho hàng đã hết!');
+  }
+
+  const selected = accounts.slice(0, qty);
+  if (selected.length < qty) {
+    return ctx.reply(
+      `⚠️ Kho chỉ còn *${selected.length} tài khoản*, không đủ *${qty}*.\n\nVui lòng chọn số lượng nhỏ hơn.`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  const totalPrice = selected.reduce((sum, a) => sum + a.price, 0);
+  const balance = getBalance(telegramId);
+  const lack = totalPrice - balance;
+
+  await ctx.reply(
+    `📦 *Xác nhận mua ${qty} tài khoản*\n\n` +
+    `💰 Tổng giá: *${totalPrice.toLocaleString('vi-VN')}đ*\n` +
+    `💳 Số dư của bạn: *${balance.toLocaleString('vi-VN')}đ*\n` +
+    (lack > 0 ? `⚠️ Thiếu: *${lack.toLocaleString('vi-VN')}đ*` : `✅ Số dư đủ`),
+    {
+      parse_mode: 'Markdown',
+      ...Markup.inlineKeyboard(
+        lack > 0
+          ? [[Markup.button.callback('💳 Nạp thêm tiền', 'deposit_start')],
+             [Markup.button.callback('❌ Huỷ', 'cancel_buy')]]
+          : [[Markup.button.callback(`✅ Mua ${qty} tài khoản ngay`, `do_bulk:${qty}`)],
+             [Markup.button.callback('❌ Huỷ', 'cancel_buy')]]
+      ),
+    }
+  );
+}
+
+async function handleDoBuyBulk(ctx) {
+  const qty = parseInt(ctx.match[1]);
+  const telegramId = ctx.from.id;
+
+  await ctx.answerCbQuery('Đang xử lý...');
+
+  let result;
+  try {
+    result = createBulkOrderFromBalance({ telegramId, quantity: qty });
+  } catch (err) {
+    if (err.message === 'OUT_OF_STOCK') {
+      return ctx.reply('❌ Kho hàng đã hết!');
+    }
+    if (err.message.startsWith('NOT_ENOUGH:')) {
+      const available = err.message.split(':')[1];
+      return ctx.reply(
+        `❌ Kho chỉ còn *${available} tài khoản*, không đủ *${qty}*.\n\nVui lòng mua lại với số lượng ít hơn.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    if (err.message === 'INSUFFICIENT_BALANCE') {
+      const balance = getBalance(telegramId);
+      return ctx.reply(
+        `❌ Số dư không đủ.\n💳 Số dư hiện tại: *${balance.toLocaleString('vi-VN')}đ*\n\nNạp thêm tiền để tiếp tục.`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    return ctx.reply('❌ Lỗi: ' + err.message);
+  }
+
+  const { orders, totalPrice } = result;
+  const newBalance = getBalance(telegramId);
+  const username = ctx.from.username ? `@${ctx.from.username}` : `#${telegramId}`;
+
+  let replyText = `✅ *Mua ${orders.length} tài khoản thành công!*\n\n📦 *Danh sách tài khoản:*\n`;
+  for (const { orderId, account } of orders) {
+    replyText += `\n*— Đơn #${orderId} —*\n`;
+    replyText += `🔑 Login: \`${account.login}\`\n`;
+    replyText += `🔒 Password: \`${account.password}\`\n`;
+    if (account.note) replyText += `📝 ${account.note}\n`;
+  }
+  replyText += `\n💰 Tổng đã thanh toán: *${totalPrice.toLocaleString('vi-VN')}đ*\n`;
+  replyText += `💳 Số dư còn lại: *${newBalance.toLocaleString('vi-VN')}đ*`;
+
+  await ctx.reply(replyText, { parse_mode: 'Markdown' });
+
+  await notifyAdmins(
+    `🛒 *ĐƠN HÀNG MỚI (x${orders.length}) — ${username}*\n\n` +
+    orders.map(({ orderId, account }) =>
+      `#${orderId}: \`${account.login}\` — ${account.price.toLocaleString('vi-VN')}đ`
+    ).join('\n') +
+    `\n\n💰 Tổng: *${totalPrice.toLocaleString('vi-VN')}đ*\n` +
+    `💳 Số dư còn lại của khách: ${newBalance.toLocaleString('vi-VN')}đ`
+  );
+}
+
 async function handleCancelBuy(ctx) {
   await ctx.answerCbQuery('Đã huỷ');
   await ctx.deleteMessage();
 }
 
-module.exports = { handleConfirmBuy, handleDoBuy, handleCancelBuy, setOrderBot };
+module.exports = { handleConfirmBuy, handleDoBuy, handleCancelBuy, handleConfirmBulkBuy, handleDoBuyBulk, setOrderBot };

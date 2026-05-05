@@ -2,8 +2,8 @@
 const { config } = require('../config');
 const { setBroadcastBot } = require('../services/broadcast');
 const { handleStart, handleHelp } = require('./handlers/start');
-const { handleShop, handleShopPage } = require('./handlers/shop');
-const { handleConfirmBuy, handleDoBuy, handleCancelBuy, setOrderBot } = require('./handlers/order');
+const { handleShop, handleShopPage, handleBuyQuantity } = require('./handlers/shop');
+const { handleConfirmBuy, handleDoBuy, handleCancelBuy, handleConfirmBulkBuy, handleDoBuyBulk, setOrderBot } = require('./handlers/order');
 const { handleHistory } = require('./handlers/history');
 const { handleWallet, handleDepositStart, handleDepositHistory, handleDepositTextInput } = require('./handlers/wallet');
 const {
@@ -28,6 +28,9 @@ function createBot() {
   bot.action(/^buy:(\d+)$/, handleConfirmBuy);
   bot.action(/^do_buy:(\d+)$/, handleDoBuy);
   bot.action('cancel_buy', handleCancelBuy);
+  bot.action('buy_qty', handleBuyQuantity);
+  bot.action(/^qty:(\d+)$/, handleConfirmBulkBuy);
+  bot.action(/^do_bulk:(\d+)$/, handleDoBuyBulk);
 
   bot.action('deposit_start', handleDepositStart);
   bot.action('deposit_history', handleDepositHistory);

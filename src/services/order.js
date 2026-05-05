@@ -1,5 +1,39 @@
 ﻿const db = require('../db/index');
 
+function createBulkOrderFromBalance({ telegramId, quantity }) {
+  const tx = db.transaction(() => {
+    const user = db.prepare(`SELECT id, balance FROM users WHERE telegram_id = ?`).get(telegramId);
+    if (!user) throw new Error('User not found');
+
+    const accounts = db.prepare(
+      `SELECT * FROM accounts WHERE status = 'available' ORDER BY id ASC LIMIT ?`
+    ).all(quantity);
+
+    if (accounts.length === 0) throw new Error('OUT_OF_STOCK');
+    if (accounts.length < quantity) throw new Error(`NOT_ENOUGH:${accounts.length}`);
+
+    const totalPrice = accounts.reduce((sum, a) => sum + a.price, 0);
+    if (user.balance < totalPrice) throw new Error('INSUFFICIENT_BALANCE');
+
+    db.prepare(`UPDATE users SET balance = balance - ? WHERE id = ?`).run(totalPrice, user.id);
+
+    const orders = [];
+    for (const account of accounts) {
+      db.prepare(`UPDATE accounts SET status = 'sold', sold_at = datetime('now','localtime') WHERE id = ?`).run(account.id);
+      const ref = 'BAL' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const result = db.prepare(`
+        INSERT INTO orders (user_id, account_id, amount, transfer_content, status, paid_at)
+        VALUES (?, ?, ?, ?, 'paid', datetime('now','localtime'))
+      `).run(user.id, account.id, account.price, ref);
+      orders.push({ orderId: result.lastInsertRowid, account });
+    }
+
+    return { orders, totalPrice };
+  });
+
+  return tx();
+}
+
 function createOrderFromBalance({ telegramId, accountId }) {
   const tx = db.transaction(() => {
     const user = db.prepare(`SELECT id, balance FROM users WHERE telegram_id = ?`).get(telegramId);
@@ -76,6 +110,7 @@ function getStats() {
 }
 
 module.exports = {
+  createBulkOrderFromBalance,
   createOrderFromBalance,
   getOrderById,
   cancelExpiredDeposits,
