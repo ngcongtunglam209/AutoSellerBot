@@ -1,6 +1,6 @@
 ﻿const { Markup } = require('telegraf');
-const { getAccountById, markAccountSold } = require('../../services/inventory');
-const { createOrder } = require('../../services/order');
+const { getAccountById } = require('../../services/inventory');
+const { createOrder, getOrderById } = require('../../services/order');
 const { config } = require('../../config');
 
 async function handleConfirmBuy(ctx) {
@@ -22,15 +22,13 @@ async function handleConfirmBuy(ctx) {
     return ctx.reply('❌ Lỗi tạo đơn hàng: ' + err.message);
   }
 
-  const { config: cfg } = require('../../config');
-  const { accountNumber, bankCode, accountName } = cfg.sepay;
+  const { accountNumber, bankCode, accountName } = config.sepay;
   const vietQRUrl =
     `https://img.vietqr.io/image/${bankCode}-${accountNumber}-compact2.png` +
     `?amount=${account.price}` +
     `&addInfo=${encodeURIComponent(order.transferContent)}` +
     `&accountName=${encodeURIComponent(accountName)}`;
 
-  const expiryMinutes = config.order.expiryMinutes;
   const msg =
     `🧾 *ĐƠN HÀNG #${order.orderId}*\n\n` +
     `💰 Số tiền: *${account.price.toLocaleString('vi-VN')}đ*\n` +
@@ -38,7 +36,7 @@ async function handleConfirmBuy(ctx) {
     `💳 Số TK: \`${accountNumber}\`\n` +
     `👤 Tên TK: ${accountName}\n` +
     `📝 Nội dung CK: \`${order.transferContent}\`\n\n` +
-    `⏰ Hết hạn sau: *${expiryMinutes} phút*\n\n` +
+    `⏰ Hết hạn sau: *${config.order.expiryMinutes} phút*\n\n` +
     `⚠️ *Lưu ý:* Nhập ĐÚNG nội dung chuyển khoản để hệ thống xác nhận tự động.`;
 
   await ctx.replyWithPhoto(
@@ -55,11 +53,9 @@ async function handleConfirmBuy(ctx) {
 
 async function handleCheckPayment(ctx) {
   const orderId = parseInt(ctx.match[1]);
-  const { getOrderById } = require('../services/order');
-
   await ctx.answerCbQuery('Đang kiểm tra...');
 
-  const order = require('../../services/order').getOrderById(orderId);
+  const order = getOrderById(orderId);
   if (!order) return ctx.reply('❌ Không tìm thấy đơn hàng.');
 
   if (order.status === 'paid') {
