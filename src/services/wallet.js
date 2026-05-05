@@ -44,14 +44,13 @@ function confirmDeposit(depositId, actualAmount) {
 
   const finalAmount = actualAmount || deposit.amount;
 
-  const tx = db.transaction(() => {
+  db.transaction(() => {
     db.prepare(`
       UPDATE deposits SET status = 'confirmed', confirmed_at = datetime('now','localtime')
       WHERE id = ?
     `).run(depositId);
     db.prepare(`UPDATE users SET balance = balance + ? WHERE id = ?`).run(finalAmount, deposit.user_id);
-  });
-  tx();
+  })();
 
   return { ...deposit, finalAmount };
 }
@@ -68,7 +67,8 @@ function getDepositHistory(telegramId) {
 }
 
 function adminAdjustBalance(telegramId, amount) {
-  db.prepare(`UPDATE users SET balance = balance + ? WHERE telegram_id = ?`).run(amount, telegramId);
+  const result = db.prepare(`UPDATE users SET balance = balance + ? WHERE telegram_id = ?`).run(amount, telegramId);
+  if (result.changes === 0) throw new Error(`Không tìm thấy user với ID ${telegramId}`);
 }
 
 module.exports = {
@@ -79,4 +79,3 @@ module.exports = {
   getDepositHistory,
   adminAdjustBalance,
 };
-

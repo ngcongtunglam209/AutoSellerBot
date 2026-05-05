@@ -1,6 +1,6 @@
 ﻿const express = require('express');
 const router = express.Router();
-const { getDepositByContent, confirmDeposit } = require('../services/wallet');
+const { getDepositByContent, confirmDeposit, getBalance } = require('../services/wallet');
 
 let botInstance = null;
 
@@ -13,10 +13,10 @@ router.post('/sepay', async (req, res) => {
     const { content, transferAmount, id: transactionId } = req.body;
     if (!content) return res.json({ success: false, message: 'No content' });
 
-    const napMatch = content.match(/SEVQR[A-Z0-9]+/);
-    if (!napMatch) return res.json({ success: false, message: 'Not a SEVQR deposit' });
+    const match = content.match(/SEVQR[A-Z0-9]+/);
+    if (!match) return res.json({ success: false, message: 'Not a SEVQR deposit' });
 
-    const transferContent = napMatch[0];
+    const transferContent = match[0];
     const deposit = getDepositByContent(transferContent);
 
     if (!deposit) return res.json({ success: false, message: 'Deposit not found' });
@@ -25,10 +25,9 @@ router.post('/sepay', async (req, res) => {
     const paidAmount = parseInt(transferAmount) || 0;
     if (paidAmount < deposit.amount) return res.json({ success: false, message: 'Insufficient amount' });
 
-    const confirmed = confirmDeposit(deposit.id, paidAmount);
+    confirmDeposit(deposit.id, paidAmount);
 
     if (botInstance && deposit.telegram_id) {
-      const { getBalance } = require('../services/wallet');
       const newBalance = getBalance(deposit.telegram_id);
       await botInstance.telegram.sendMessage(
         deposit.telegram_id,
@@ -49,4 +48,3 @@ router.post('/sepay', async (req, res) => {
 });
 
 module.exports = { router, setBotInstance };
-

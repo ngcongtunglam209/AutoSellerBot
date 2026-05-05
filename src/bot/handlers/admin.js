@@ -198,7 +198,12 @@ async function handleAdminTextInput(ctx, next) {
       adminSessions.delete(userId);
       return ctx.reply('❌ telegram_id hoặc số tiền không hợp lệ.');
     }
-    adminAdjustBalance(targetId, amount);
+    try {
+      adminAdjustBalance(targetId, amount);
+    } catch (err) {
+      adminSessions.delete(userId);
+      return ctx.reply(`❌ ${err.message}`);
+    }
     adminSessions.delete(userId);
     const sign = amount >= 0 ? '+' : '';
     return ctx.reply(`✅ Đã ${sign}${amount.toLocaleString('vi-VN')}đ cho user ${targetId}.`);
@@ -242,6 +247,8 @@ module.exports = {
   handleAdminDelete,
   handleAdminTextInput,
 };
+
+
 
 
 

@@ -1,11 +1,15 @@
 ﻿const { Markup } = require('telegraf');
 const { getBalance, createDeposit, getDepositHistory } = require('../../services/wallet');
+const { upsertUser } = require('../../services/user');
 const { config } = require('../../config');
 
 const depositSessions = new Map();
 
 async function handleWallet(ctx) {
-  const balance = getBalance(ctx.from.id);
+  const { id, username, first_name, last_name } = ctx.from;
+  upsertUser({ telegramId: id, username, fullName: [first_name, last_name].filter(Boolean).join(' ') });
+
+  const balance = getBalance(id);
   await ctx.reply(
     `💳 *VÍ CỦA BẠN*\n\n` +
     `💰 Số dư: *${balance.toLocaleString('vi-VN')}đ*\n\n` +
