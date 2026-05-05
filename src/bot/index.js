@@ -2,14 +2,14 @@
 const { config } = require('../config');
 const { setBroadcastBot } = require('../services/broadcast');
 const { handleStart, handleHelp } = require('./handlers/start');
-const { handleShop, handleShopPage, handleBuyConfirm: handleBuyConfirmShop, handleCancelBuy } = require('./handlers/shop');
-const { handleConfirmBuy, handleDoBuy, handleCancelBuy: handleCancelBuyOrder } = require('./handlers/order');
+const { handleShop, handleShopPage } = require('./handlers/shop');
+const { handleConfirmBuy, handleDoBuy, handleCancelBuy } = require('./handlers/order');
 const { handleHistory } = require('./handlers/history');
 const { handleWallet, handleDepositStart, handleDepositHistory, handleDepositTextInput } = require('./handlers/wallet');
 const {
   handleAdmin, handleAdminAdd, handleAdminInventory,
-  handleAdminOrders, handleAdminStats, handleAdminDelete,
-  handleAdminTextInput,
+  handleAdminOrders, handleAdminStats, handleAdminBalance,
+  handleAdminDelete, handleAdminTextInput,
 } = require('./handlers/admin');
 
 function createBot() {
@@ -27,7 +27,7 @@ function createBot() {
   bot.action(/^shop_page:(\d+)$/, handleShopPage);
   bot.action(/^buy:(\d+)$/, handleConfirmBuy);
   bot.action(/^do_buy:(\d+)$/, handleDoBuy);
-  bot.action('cancel_buy', handleCancelBuyOrder);
+  bot.action('cancel_buy', handleCancelBuy);
 
   bot.action('deposit_start', handleDepositStart);
   bot.action('deposit_history', handleDepositHistory);
@@ -56,4 +56,3 @@ function createBot() {
 }
 
 module.exports = { createBot };
-

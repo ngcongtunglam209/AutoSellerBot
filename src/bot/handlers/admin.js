@@ -1,7 +1,7 @@
 ﻿const { Markup } = require('telegraf');
 const { config } = require('../../config');
 const {
-  addAccount, addAccountsBulk, deleteAccount,
+  addAccountsBulk, deleteAccount,
   getAllAccounts, countAvailable,
 } = require('../../services/inventory');
 const { getAllOrders, getStats } = require('../../services/order');
@@ -242,5 +242,6 @@ module.exports = {
   handleAdminDelete,
   handleAdminTextInput,
 };
+
 
 

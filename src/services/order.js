@@ -35,22 +35,12 @@ function getOrderById(id) {
   `).get(id);
 }
 
-function cancelExpiredOrders() {
-  const expired = db.prepare(`
-    SELECT id, account_id FROM orders
+function cancelExpiredDeposits() {
+  const result = db.prepare(`
+    UPDATE deposits SET status = 'expired'
     WHERE status = 'pending' AND datetime('now','localtime') > expires_at
-  `).all();
-
-  if (expired.length === 0) return 0;
-
-  const cancel = db.prepare(`UPDATE orders SET status = 'cancelled' WHERE id = ?`);
-  const free = db.prepare(`UPDATE accounts SET status = 'available' WHERE id = ? AND status = 'reserved'`);
-
-  db.transaction((rows) => {
-    for (const r of rows) { cancel.run(r.id); if (r.account_id) free.run(r.account_id); }
-  })(expired);
-
-  return expired.length;
+  `).run();
+  return result.changes;
 }
 
 function getUserOrders(telegramId) {
@@ -81,14 +71,14 @@ function getStats() {
     totalOrders: db.prepare(`SELECT COUNT(*) as c FROM orders`).get().c,
     paidOrders: db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'paid'`).get().c,
     totalRevenue: db.prepare(`SELECT COALESCE(SUM(amount),0) as s FROM orders WHERE status = 'paid'`).get().s,
-    pendingOrders: db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'pending'`).get().c,
+    pendingOrders: 0,
   };
 }
 
 module.exports = {
   createOrderFromBalance,
   getOrderById,
-  cancelExpiredOrders,
+  cancelExpiredDeposits,
   getUserOrders,
   getAllOrders,
   getStats,
