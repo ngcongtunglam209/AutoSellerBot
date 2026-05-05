@@ -14,15 +14,28 @@ function createOrder({ telegramId, accountId, amount }) {
   const transferContent = generateTransferContent();
   const expiryMinutes = config.order.expiryMinutes;
 
-  const stmt = db.prepare(`
-    INSERT INTO orders (user_id, account_id, amount, transfer_content, status, expires_at)
-    VALUES (
-      ?, ?, ?, ?, 'pending',
-      datetime('now', 'localtime', '+${expiryMinutes} minutes')
-    )
-  `);
-  const result = stmt.run(user.id, accountId, amount, transferContent);
-  return { orderId: result.lastInsertRowid, transferContent };
+  const tx = db.transaction(() => {
+    // Atomic check + reserve — nếu account đã bị grab bởi user khác thì fail ngay
+    const account = db.prepare(
+      `SELECT id FROM accounts WHERE id = ? AND status = 'available'`
+    ).get(accountId);
+
+    if (!account) throw new Error('ACCOUNT_TAKEN');
+
+    db.prepare(
+      `UPDATE accounts SET status = 'reserved' WHERE id = ?`
+    ).run(accountId);
+
+    const result = db.prepare(`
+      INSERT INTO orders (user_id, account_id, amount, transfer_content, status, expires_at)
+      VALUES (?, ?, ?, ?, 'pending', datetime('now', 'localtime', '+${expiryMinutes} minutes'))
+    `).run(user.id, accountId, amount, transferContent);
+
+    return result.lastInsertRowid;
+  });
+
+  const orderId = tx();
+  return { orderId, transferContent };
 }
 
 function getOrderByTransferContent(transferContent) {
@@ -114,4 +127,3 @@ module.exports = {
   getAllOrders,
   getStats,
 };
-

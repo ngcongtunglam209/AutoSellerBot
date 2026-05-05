@@ -19,6 +19,9 @@ async function handleConfirmBuy(ctx) {
   try {
     order = createOrder({ telegramId, accountId, amount: account.price });
   } catch (err) {
+    if (err.message === 'ACCOUNT_TAKEN') {
+      return ctx.reply('❌ Tài khoản này vừa được người khác mua. Vui lòng chọn tài khoản khác!');
+    }
     return ctx.reply('❌ Lỗi tạo đơn hàng: ' + err.message);
   }
 
@@ -80,3 +83,4 @@ async function handleCheckPayment(ctx) {
 }
 
 module.exports = { handleConfirmBuy, handleCheckPayment };
+
