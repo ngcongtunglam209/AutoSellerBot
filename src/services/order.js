@@ -17,7 +17,7 @@ function createBulkOrderFromBalance({ telegramId, quantity }) {
 
     // Tính chiết khấu khi mua số lượng đủ điều kiện
     const { minQty, discountPerItem } = config.discount;
-    const discountTotal = (quantity > minQty && discountPerItem > 0)
+    const discountTotal = (quantity >= minQty && discountPerItem > 0)
       ? discountPerItem * quantity
       : 0;
     const totalPrice = totalOriginal - discountTotal;

@@ -1,6 +1,8 @@
-﻿const { Markup } = require('telegraf');
+const { Markup } = require('telegraf');
 const { getAvailableAccounts, getAccountById } = require('../../services/inventory');
 const { upsertUser } = require('../../services/user');
+
+const buySessions = new Map();
 
 const ITEMS_PER_PAGE = 5;
 
@@ -95,19 +97,51 @@ async function handleBuyQuantity(ctx) {
     return ctx.reply('😔 Hiện tại kho hàng đã hết!');
   }
 
-  const options = [1, 2, 3, 5, 10].filter(q => q <= accounts.length);
-  const rows = [];
-  for (let i = 0; i < options.length; i += 3) {
-    rows.push(options.slice(i, i + 3).map(q =>
-      Markup.button.callback(`${q} tài khoản`, `qty:${q}`)
-    ));
-  }
-  rows.push([Markup.button.callback('❌ Huỷ', 'cancel_buy')]);
+  buySessions.set(ctx.from.id, { step: 'enter_qty' });
 
   await ctx.reply(
-    `🔢 *Chọn số lượng tài khoản muốn mua*\n\n📦 Kho còn: *${accounts.length} tài khoản*`,
-    { parse_mode: 'Markdown', ...Markup.inlineKeyboard(rows) }
+    `🔢 *Mua theo số lượng*\n\n` +
+    `📦 Kho còn: *${accounts.length} tài khoản*\n\n` +
+    `Nhập số lượng bạn muốn mua:\n` +
+    `_(Gửi /cancel để huỷ)_`,
+    { parse_mode: 'Markdown' }
   );
+}
+
+async function handleBuyQtyTextInput(ctx, next) {
+  const userId = ctx.from.id;
+  const session = buySessions.get(userId);
+  if (!session || session.step !== 'enter_qty') return next();
+
+  const text = ctx.message.text.trim();
+  if (text === '/cancel') {
+    buySessions.delete(userId);
+    return ctx.reply('❌ Đã huỷ.');
+  }
+
+  const qty = parseInt(text);
+  if (isNaN(qty) || qty < 1) {
+    return ctx.reply('❌ Số lượng không hợp lệ. Vui lòng nhập số nguyên dương.');
+  }
+
+  const accounts = getAvailableAccounts();
+  if (accounts.length === 0) {
+    buySessions.delete(userId);
+    return ctx.reply('😔 Kho hàng đã hết!');
+  }
+  if (qty > accounts.length) {
+    return ctx.reply(
+      `⚠️ Kho chỉ còn *${accounts.length} tài khoản*, bạn không thể mua *${qty}*.\nVui lòng nhập lại.`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  buySessions.delete(userId);
+
+  // Giả lập callback để tái sử dụng handleConfirmBulkBuy
+  ctx.match = [null, qty.toString()];
+  const { handleConfirmBulkBuy } = require('./order');
+  return handleConfirmBulkBuy(ctx);
 }
 
 async function handleCancelBuy(ctx) {
@@ -115,4 +149,4 @@ async function handleCancelBuy(ctx) {
   await ctx.deleteMessage();
 }
 
-module.exports = { handleShop, handleShopPage, handleBuyConfirm, handleBuyQuantity, handleCancelBuy };
+module.exports = { handleShop, handleShopPage, handleBuyConfirm, handleBuyQuantity, handleBuyQtyTextInput, handleCancelBuy };

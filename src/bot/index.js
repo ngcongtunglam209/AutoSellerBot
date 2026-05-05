@@ -2,7 +2,7 @@ const { Telegraf } = require('telegraf');
 const { config } = require('../config');
 const { setBroadcastBot } = require('../services/broadcast');
 const { handleStart, handleHelp } = require('./handlers/start');
-const { handleShop, handleShopPage, handleBuyQuantity } = require('./handlers/shop');
+const { handleShop, handleShopPage, handleBuyQuantity, handleBuyQtyTextInput } = require('./handlers/shop');
 const { handleConfirmBuy, handleDoBuy, handleCancelBuy, handleConfirmBulkBuy, handleDoBuyBulk, setOrderBot } = require('./handlers/order');
 const { handleHistory } = require('./handlers/history');
 const { handleWallet, handleDepositStart, handleDepositHistory, handleDepositTextInput } = require('./handlers/wallet');
@@ -44,8 +44,10 @@ function createBot() {
   bot.action('admin_discount', handleAdminDiscount);
 
   bot.on('text', async (ctx, next) => {
-    await handleDepositTextInput(ctx, async () => {
-      await handleAdminTextInput(ctx, next);
+    await handleBuyQtyTextInput(ctx, async () => {
+      await handleDepositTextInput(ctx, async () => {
+        await handleAdminTextInput(ctx, next);
+      });
     });
   });
 

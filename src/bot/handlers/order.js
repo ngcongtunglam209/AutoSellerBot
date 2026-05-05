@@ -98,7 +98,7 @@ async function handleConfirmBulkBuy(ctx) {
   const qty = parseInt(ctx.match[1]);
   const telegramId = ctx.from.id;
 
-  await ctx.answerCbQuery();
+  if (ctx.callbackQuery) await ctx.answerCbQuery();
 
   const accounts = getAvailableAccounts();
 
