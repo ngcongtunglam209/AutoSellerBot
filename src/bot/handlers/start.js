@@ -31,7 +31,7 @@ async function handleHelp(ctx) {
     `1. Nhấn *💳 Ví Của Tôi* → *Nạp tiền* để nạp balance\n` +
     `2. Nhấn *🛒 Mua Tài Khoản* để xem danh sách\n` +
     `3. Chọn tài khoản → Xác nhận → Nhận ngay!\n\n` +
-    `💬 Liên hệ hỗ trợ: @admin`,
+    `💬 Liên hệ hỗ trợ: 6481038407`,
     { parse_mode: 'Markdown' }
   );
 }
