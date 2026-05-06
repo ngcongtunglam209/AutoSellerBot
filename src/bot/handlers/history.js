@@ -1,4 +1,4 @@
-﻿const { getUserOrders } = require('../../services/order');
+const { getUserOrders } = require('../../services/order');
 
 const STATUS_EMOJI = {
   paid: '✅',
@@ -21,7 +21,8 @@ async function handleHistory(ctx) {
     text += `${emoji} *#${o.id}* — ${o.amount.toLocaleString('vi-VN')}đ — ${o.status.toUpperCase()}\n`;
     text += `   📅 ${o.created_at}\n`;
     if (o.status === 'paid' && o.login) {
-      text += `   🔑 \`${o.login}\`\n`;
+      text += `   🔑 Login: \`${o.login}\`\n`;
+      if (o.password) text += `   🔒 Password: \`${o.password}\`\n`;
     }
     text += '\n';
   }

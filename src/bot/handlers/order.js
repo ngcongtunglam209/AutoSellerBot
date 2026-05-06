@@ -85,6 +85,19 @@ async function handleDoBuy(ctx) {
     { parse_mode: 'Markdown' }
   );
 
+  // Hướng dẫn sử dụng sau khi mua
+  await ctx.reply(
+    `ℹ️ *Hướng dẫn sử dụng tài khoản*\n\n` +
+    `1️⃣ Sao chép Login và Password ở trên\n` +
+    `2️⃣ Truy cập trang đăng nhập của dịch vụ\n` +
+    `3️⃣ Nhập Login + Password để đăng nhập\n` +
+    `4️⃣ Đổi mật khẩu ngay sau khi đăng nhập\n\n` +
+    `📍 Bạn có thể xem lại thông tin đại lý trong *Lịch Sử Mua Hàng*\n\n` +
+    `⚠️ *Lưu ý:* Không có chính sách hoàn tiền sau khi đã có thông tin tài khoản.\n` +
+    `📞 Hỗ trợ vấn đề kỹ thuật: /help`,
+    { parse_mode: 'Markdown' }
+  );
+
   await notifyAdmins(
     `🛒 *ĐƠN HÀNG MỚI #${orderId}*\n\n` +
     `👤 Khách: ${username}\n` +
@@ -92,6 +105,12 @@ async function handleDoBuy(ctx) {
     `💰 Giá: *${account.price.toLocaleString('vi-VN')}đ*\n` +
     `💳 Số dư còn lại của khách: ${newBalance.toLocaleString('vi-VN')}đ`
   );
+
+  // Notify admin nếu kho hết hàng
+  const { countAvailable } = require('../../services/inventory');
+  if (countAvailable() === 0) {
+    await notifyAdmins(`⚠️ *CẢNH BÁO: KHO ĐÃ HẾT HÀNG!*\n\nVừa bán xong đơn #${orderId}. Kho hiện không còn tài khoản nào. Vui lòng nhập thêm hàng!`);
+  }
 }
 
 async function handleConfirmBulkBuy(ctx) {
@@ -115,10 +134,12 @@ async function handleConfirmBulkBuy(ctx) {
   }
 
   const totalOriginal = selected.reduce((sum, a) => sum + a.price, 0);
-  const { minQty, discountPerItem } = config.discount;
-  const discountTotal = (qty > minQty && discountPerItem > 0)
-    ? discountPerItem * qty
-    : 0;
+
+  // Tính chiết khấu theo bậc
+  const { tiers } = config.discount;
+  const matchedTier = (tiers || []).find(t => qty > t.minQty) || null;
+  const discountPercent = matchedTier ? matchedTier.percent : 0;
+  const discountTotal = Math.round(totalOriginal * discountPercent / 100);
   const totalPrice = totalOriginal - discountTotal;
 
   const balance = getBalance(telegramId);
@@ -128,14 +149,24 @@ async function handleConfirmBulkBuy(ctx) {
     `💰 Tổng giá gốc: *${totalOriginal.toLocaleString('vi-VN')}đ*\n`;
   if (discountTotal > 0) {
     priceText +=
-      `🎁 Chiết khấu mua nhiều (>${minQty} sp): *-${discountTotal.toLocaleString('vi-VN')}đ*\n` +
+      `🎁 Chiết khấu (mua >${matchedTier.minQty} sp → giảm ${discountPercent}%): *-${discountTotal.toLocaleString('vi-VN')}đ*\n` +
       `✨ Giá sau chiết khấu: *${totalPrice.toLocaleString('vi-VN')}đ*\n`;
   }
   priceText += `💳 Số dư của bạn: *${balance.toLocaleString('vi-VN')}đ*\n`;
   priceText += (lack > 0 ? `⚠️ Thiếu: *${lack.toLocaleString('vi-VN')}đ*` : `✅ Số dư đủ`);
 
+  // Hiển thị bảng các mức chiết khấu hiện có (sắp xếp tăng dần để dễ đọc)
+  let tierInfo = '';
+  if (tiers && tiers.length > 0) {
+    const sorted = [...tiers].sort((a, b) => a.minQty - b.minQty);
+    tierInfo = `\n📊 *Bảng chiết khấu:*\n` +
+      sorted.map(t =>
+        `${matchedTier && qty > t.minQty && t.minQty === matchedTier.minQty ? '✅' : '•'} Mua >${t.minQty} sp: giảm *${t.percent}%*`
+      ).join('\n') + '\n';
+  }
+
   await ctx.reply(
-    `📦 *Xác nhận mua ${qty} tài khoản*\n\n` + priceText,
+    `📦 *Xác nhận mua ${qty} tài khoản*\n\n` + tierInfo + priceText,
     {
       parse_mode: 'Markdown',
       ...Markup.inlineKeyboard(
@@ -179,7 +210,7 @@ async function handleDoBuyBulk(ctx) {
     return ctx.reply('❌ Lỗi: ' + err.message);
   }
 
-  const { orders, totalPrice, totalOriginal, discountTotal } = result;
+  const { orders, totalPrice, totalOriginal, discountTotal, discountPercent } = result;
   const newBalance = getBalance(telegramId);
   const username = ctx.from.username ? `@${ctx.from.username}` : `#${telegramId}`;
 
@@ -192,7 +223,7 @@ async function handleDoBuyBulk(ctx) {
   }
   replyText += `\n💰 Giá gốc: *${totalOriginal.toLocaleString('vi-VN')}đ*\n`;
   if (discountTotal > 0) {
-    replyText += `🎁 Chiết khấu: *-${discountTotal.toLocaleString('vi-VN')}đ*\n`;
+    replyText += `🎁 Chiết khấu (${discountPercent}%): *-${discountTotal.toLocaleString('vi-VN')}đ*\n`;
     replyText += `✨ Thực trả: *${totalPrice.toLocaleString('vi-VN')}đ*\n`;
   } else {
     replyText += `💰 Tổng đã thanh toán: *${totalPrice.toLocaleString('vi-VN')}đ*\n`;
@@ -201,15 +232,37 @@ async function handleDoBuyBulk(ctx) {
 
   await ctx.reply(replyText, { parse_mode: 'Markdown' });
 
+  // Hướng dẫn sử dụng sau khi mua bulk
+  await ctx.reply(
+    `ℹ️ *Hướng dẫn sử dụng tài khoản*\n\n` +
+    `1️⃣ Sao chép Login và Password tương ứng cho từng tài khoản\n` +
+    `2️⃣ Truy cập trang đăng nhập của dịch vụ\n` +
+    `3️⃣ Nhập Login + Password để đăng nhập\n` +
+    `4️⃣ Đổi mật khẩu ngay sau khi đăng nhập để bảo mật\n\n` +
+    `📍 Bạn có thể xem lại thông tin trong *Lịch Sử Mua Hàng*\n\n` +
+    `⚠️ *Lưu ý:* Không có chính sách hoàn tiền sau khi đã có thông tin tài khoản.\n` +
+    `📞 Hỗ trợ vấn đề kỹ thuật: /help`,
+    { parse_mode: 'Markdown' }
+  );
+
   await notifyAdmins(
     `🛒 *ĐƠN HÀNG MỚI (x${orders.length}) — ${username}*\n\n` +
     orders.map(({ orderId, account }) =>
       `#${orderId}: \`${account.login}\` — ${account.price.toLocaleString('vi-VN')}đ`
     ).join('\n') +
     `\n\n💰 Giá gốc: *${totalOriginal.toLocaleString('vi-VN')}đ*` +
-    (discountTotal > 0 ? `\n🎁 Chiết khấu: *-${discountTotal.toLocaleString('vi-VN')}đ*\n✨ Thực thu: *${totalPrice.toLocaleString('vi-VN')}đ*` : `\n💰 Tổng: *${totalPrice.toLocaleString('vi-VN')}đ*`) +
+    (discountTotal > 0
+      ? `\n🎁 Chiết khấu (${discountPercent}%): *-${discountTotal.toLocaleString('vi-VN')}đ*\n✨ Thực thu: *${totalPrice.toLocaleString('vi-VN')}đ*`
+      : `\n💰 Tổng: *${totalPrice.toLocaleString('vi-VN')}đ*`) +
     `\n💳 Số dư còn lại của khách: ${newBalance.toLocaleString('vi-VN')}đ`
   );
+
+  // Notify admin nếu kho hết hàng
+  const { countAvailable } = require('../../services/inventory');
+  if (countAvailable() === 0) {
+    const lastOrderId = orders[orders.length - 1]?.orderId;
+    await notifyAdmins(`⚠️ *CẢNH BÁO: KHO ĐÃ HẾT HÀNG!*\n\nVừa bán xong đơn bulk (đơn cuối #${lastOrderId}). Kho hiện không còn tài khoản nào. Vui lòng nhập thêm hàng!`);
+  }
 }
 
 async function handleCancelBuy(ctx) {

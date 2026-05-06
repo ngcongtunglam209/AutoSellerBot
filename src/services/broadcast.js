@@ -1,4 +1,4 @@
-﻿const { getAllUsers } = require('./user');
+const { getAllUsers } = require('./user');
 
 let botInstance = null;
 
@@ -18,6 +18,8 @@ async function notifyAllUsers(message) {
     } catch {
       failed++;
     }
+    // Tránh Telegram rate-limit (30 msg/s per bot global)
+    await new Promise(r => setTimeout(r, 35));
   }
   console.log(`[Broadcast] Sent: ${sent}, Failed: ${failed}/${users.length}`);
   return { sent, failed };

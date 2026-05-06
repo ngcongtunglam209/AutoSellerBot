@@ -30,20 +30,24 @@ async function handleAdmin(ctx) {
     `⏳ Đơn chờ: *${stats.pendingOrders}*\n` +
     `💰 Doanh thu: *${stats.totalRevenue.toLocaleString('vi-VN')}đ*`;
 
-  const { minQty, discountPerItem } = config.discount;
-  const discountInfo = discountPerItem > 0
-    ? `🎁 Chiết khấu: *-${discountPerItem.toLocaleString('vi-VN')}đ/sp* khi mua *>${minQty} sp*`
-    : `🎁 Chiết khấu: *Chưa bật*`;
+  const { tiers } = config.discount;
+  let discountInfo;
+  if (!tiers || tiers.length === 0) {
+    discountInfo = `🎁 Chiết khấu: *Chưa bật*`;
+  } else {
+    const sorted = [...tiers].sort((a, b) => a.minQty - b.minQty);
+    discountInfo = `🎁 Chiết khấu:\n` +
+      sorted.map(t => `  • Mua >${t.minQty} sp: giảm *${t.percent}%*`).join('\n');
+  }
 
   await ctx.reply(text + '\n' + discountInfo, {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard([
       [Markup.button.callback('➕ Thêm account', 'admin_add')],
-      [Markup.button.callback('📦 Xem kho hàng', 'admin_inventory')],
-      [Markup.button.callback('📋 Đơn hàng gần đây', 'admin_orders')],
-      [Markup.button.callback('📊 Thống kê', 'admin_stats')],
+      [Markup.button.callback('📦 Xem kho hàng', 'admin_inventory'), Markup.button.callback('📋 Đơn hàng', 'admin_orders')],
+      [Markup.button.callback('💸 Hàng đã bán', 'admin_sold'), Markup.button.callback('📊 Thống kê', 'admin_stats')],
       [Markup.button.callback('💳 Điều chỉnh số dư', 'admin_balance')],
-      [Markup.button.callback('🎁 Cài chiết khấu số lượng', 'admin_discount')],
+      [Markup.button.callback('🎁 Cài chiết khấu', 'admin_discount'), Markup.button.callback('👥 Quản lý user', 'admin_users')],
     ]),
   });
 }
@@ -87,6 +91,7 @@ async function handleAdminInventory(ctx) {
     parse_mode: 'Markdown',
     ...Markup.inlineKeyboard([
       [Markup.button.callback('🗑️ Xoá account', 'admin_delete')],
+      [Markup.button.callback('🔙 Quay lại', 'admin_back')],
     ]),
   });
 }
@@ -107,7 +112,10 @@ async function handleAdminOrders(ctx) {
     text += `   ${o.created_at}\n`;
   }
 
-  await ctx.reply(text, { parse_mode: 'Markdown' });
+  await ctx.reply(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Quay lại', 'admin_back')]]),
+  });
 }
 
 async function handleAdminStats(ctx) {
@@ -126,9 +134,14 @@ async function handleAdminStats(ctx) {
     `• Đơn đang chờ: ${stats.pendingOrders}\n` +
     `• Tỷ lệ thành công: ${stats.totalOrders ? Math.round((stats.paidOrders / stats.totalOrders) * 100) : 0}%\n\n` +
     `💰 *Doanh thu:*\n` +
-    `• Tổng cộng: *${stats.totalRevenue.toLocaleString('vi-VN')}đ*`;
+    `• Tổng cộng: *${stats.totalRevenue.toLocaleString('vi-VN')}đ*\n` +
+    `• Hôm nay: *${stats.todayRevenue.toLocaleString('vi-VN')}đ* (${stats.todayOrders} đơn)\n` +
+    `• Tháng này: *${stats.monthRevenue.toLocaleString('vi-VN')}đ* (${stats.monthOrders} đơn)`;
 
-  await ctx.reply(text, { parse_mode: 'Markdown' });
+  await ctx.reply(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Quay lại', 'admin_back')]]),
+  });
 }
 
 async function handleAdminDelete(ctx) {
@@ -227,24 +240,36 @@ async function handleAdminTextInput(ctx, next) {
   }
 
   if (session.step === 'set_discount') {
-    const parts = text.split('|');
-    if (parts.length !== 2) {
+    // Định dạng mới: "5,10%|10,15%|20,20%" (minQty,percent mỗi bậc cách nhau |)
+    // Hoặc "0" để tắt chiết khấu
+    if (text.trim() === '0') {
+      config.discount.tiers = [];
       adminSessions.delete(userId);
-      return ctx.reply('❌ Sai định dạng. Dùng: ngưỡng|chiết_khấu_mỗi_sp');
+      return ctx.reply('✅ Đã tắt toàn bộ chiết khấu.', { parse_mode: 'Markdown' });
     }
-    const newMinQty = parseInt(parts[0]);
-    const newDiscount = parseInt(parts[1]);
-    if (isNaN(newMinQty) || isNaN(newDiscount) || newMinQty < 1 || newDiscount < 0) {
-      adminSessions.delete(userId);
-      return ctx.reply('❌ Giá trị không hợp lệ. Ngưỡng phải >= 1, chiết khấu phải >= 0.');
+    const entries = text.split('|').map(s => s.trim()).filter(Boolean);
+    const newTiers = [];
+    for (const entry of entries) {
+      const m = entry.match(/^(\d+),(\d+)%?$/);
+      if (!m) {
+        adminSessions.delete(userId);
+        return ctx.reply(`❌ Sai định dạng: \`${entry}\`\nDùng: \`ngưỡng,phần_trăm\` (VD: \`5,10|10,15\`)\nHoặc gửi \`0\` để tắt chiết khấu.`, { parse_mode: 'Markdown' });
+      }
+      const minQty = parseInt(m[1]);
+      const percent = parseInt(m[2]);
+      if (minQty < 1 || percent < 0 || percent > 100) {
+        adminSessions.delete(userId);
+        return ctx.reply('❌ Ngưỡng phải >= 1, phần trăm từ 0-100.');
+      }
+      newTiers.push({ minQty, percent });
     }
-    config.discount.minQty = newMinQty;
-    config.discount.discountPerItem = newDiscount;
+    // Sắp xếp giảm dần (để dễ tìm mức cao nhất áp dụng được)
+    newTiers.sort((a, b) => b.minQty - a.minQty);
+    config.discount.tiers = newTiers;
     adminSessions.delete(userId);
-    const status = newDiscount > 0
-      ? `✅ Đã bật chiết khấu: mua *>${newMinQty} sp*, giảm *${newDiscount.toLocaleString('vi-VN')}đ/sp*.`
-      : `✅ Đã tắt chiết khấu.`;
-    return ctx.reply(status, { parse_mode: 'Markdown' });
+    const sorted = [...newTiers].sort((a, b) => a.minQty - b.minQty);
+    const tierLines = sorted.map(t => `  • Mua >${t.minQty} sp: giảm *${t.percent}%*`).join('\n');
+    return ctx.reply(`✅ Đã cập nhật chiết khấu:\n${tierLines}`, { parse_mode: 'Markdown' });
   }
 
   return next();
@@ -253,19 +278,100 @@ async function handleAdminTextInput(ctx, next) {
 async function handleAdminDiscount(ctx) {
   if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ Không có quyền');
   await ctx.answerCbQuery();
-  const { minQty, discountPerItem } = config.discount;
+  const { tiers } = config.discount;
   adminSessions.set(ctx.from.id, { step: 'set_discount' });
+
+  let currentInfo;
+  if (!tiers || tiers.length === 0) {
+    currentInfo = `Chưa có chiết khấu nào được cài.`;
+  } else {
+    const sorted = [...tiers].sort((a, b) => a.minQty - b.minQty);
+    currentInfo = sorted.map(t => `  • Mua >${t.minQty} sp: giảm *${t.percent}%*`).join('\n');
+  }
+
   await ctx.reply(
     `🎁 *Cài chiết khấu mua số lượng nhiều*\n\n` +
-    `Hiện tại:\n` +
-    `• Ngưỡng: mua *>${minQty} sản phẩm*\n` +
-    `• Chiết khấu: *${discountPerItem.toLocaleString('vi-VN')}đ/sản phẩm*\n\n` +
-    `Nhập theo định dạng: \`ngưỡng|chiết_khấu_mỗi_sp\`\n\n` +
-    `Ví dụ: \`5|5000\` (mua >5 sp, giảm 5.000đ/sp)\n` +
-    `Đặt 0 để tắt chiết khấu: \`5|0\`\n\n` +
+    `Hiện tại:\n${currentInfo}\n\n` +
+    `Nhập các bậc chiết khấu theo định dạng:\n` +
+    `\`ngưỡng,phần_trăm|ngưỡng,phần_trăm\`\n\n` +
+    `Ví dụ: \`5,10|10,15|20,20\`\n` +
+    `(Mua >5 sp giảm 10%, >10 sp giảm 15%, >20 sp giảm 20%)\n\n` +
+    `Gửi \`0\` để tắt toàn bộ chiết khấu.\n` +
     `Gửi /cancel để huỷ.`,
     { parse_mode: 'Markdown' }
   );
+}
+
+async function handleAdminUsers(ctx) {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ Không có quyền');
+  await ctx.answerCbQuery();
+
+  const db = require('../../db/index');
+  const users = db.prepare(`
+    SELECT telegram_id, username, full_name, balance, created_at
+    FROM users ORDER BY balance DESC LIMIT 20
+  `).all();
+
+  if (users.length === 0) return ctx.reply('👥 Chưa có user nào.');
+
+  let text = `👥 *Danh sách user (top 20 theo số dư)*\n\n`;
+  for (const u of users) {
+    const name = u.username ? `@${u.username}` : (u.full_name || `#${u.telegram_id}`);
+    text += `• ${name} — 💰 *${u.balance.toLocaleString('vi-VN')}đ*\n`;
+    text += `  ID: \`${u.telegram_id}\`\n`;
+  }
+
+  await ctx.reply(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Quay lại', 'admin_back')]]),
+  });
+}
+
+async function handleAdminSoldItems(ctx) {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ Không có quyền');
+  await ctx.answerCbQuery();
+
+  const db = require('../../db/index');
+  const sold = db.prepare(`
+    SELECT a.login, a.password, a.note, a.price,
+           o.id as order_id, o.created_at,
+           u.username, u.telegram_id
+    FROM accounts a
+    JOIN orders o ON o.account_id = a.id
+    JOIN users u ON o.user_id = u.id
+    WHERE a.status = 'sold' AND o.status = 'paid'
+    ORDER BY o.created_at DESC
+    LIMIT 20
+  `).all();
+
+  if (sold.length === 0) return ctx.reply('💸 Chưa có hàng nào được bán.');
+
+  let text = `💸 *Hàng đã bán (${sold.length} gần nhất)*\n\n`;
+  for (const item of sold) {
+    const buyer = item.username ? `@${item.username}` : `#${item.telegram_id}`;
+    text += `*— Đơn #${item.order_id} —*\n`;
+    text += `👤 Khách: ${buyer}\n`;
+    text += `🔑 Login: \`${item.login}\`\n`;
+    text += `🔒 Pass: \`${item.password}\`\n`;
+    if (item.note) text += `📝 ${item.note}\n`;
+    text += `💰 Giá: *${item.price.toLocaleString('vi-VN')}đ* | 📅 ${item.created_at}\n\n`;
+  }
+
+  // Telegram giới hạn 4096 ký tự — cắt nếu quá dài
+  if (text.length > 3800) {
+    text = text.slice(0, 3800) + '\n\n_... (xem thêm trong DB)_';
+  }
+
+  await ctx.reply(text, {
+    parse_mode: 'Markdown',
+    ...Markup.inlineKeyboard([[Markup.button.callback('🔙 Quay lại', 'admin_back')]]),
+  });
+}
+
+async function handleAdminBack(ctx) {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ Không có quyền');
+  await ctx.answerCbQuery();
+  return handleAdmin(ctx);
 }
 
 async function handleAdminBalance(ctx) {
@@ -292,6 +398,9 @@ module.exports = {
   handleAdminDelete,
   handleAdminDiscount,
   handleAdminTextInput,
+  handleAdminUsers,
+  handleAdminBack,
+  handleAdminSoldItems,
 };
 
 

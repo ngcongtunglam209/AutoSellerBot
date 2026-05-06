@@ -10,6 +10,7 @@ const {
   handleAdmin, handleAdminAdd, handleAdminInventory,
   handleAdminOrders, handleAdminStats, handleAdminBalance,
   handleAdminDelete, handleAdminDiscount, handleAdminTextInput,
+  handleAdminUsers, handleAdminBack, handleAdminSoldItems,
 } = require('./handlers/admin');
 
 function createBot() {
@@ -42,6 +43,9 @@ function createBot() {
   bot.action('admin_balance', handleAdminBalance);
   bot.action('admin_delete', handleAdminDelete);
   bot.action('admin_discount', handleAdminDiscount);
+  bot.action('admin_users', handleAdminUsers);
+  bot.action('admin_back', handleAdminBack);
+  bot.action('admin_sold', handleAdminSoldItems);
 
   bot.on('text', async (ctx, next) => {
     await handleBuyQtyTextInput(ctx, async () => {
@@ -63,3 +67,4 @@ function createBot() {
 }
 
 module.exports = { createBot };
+

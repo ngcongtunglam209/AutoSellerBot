@@ -1,6 +1,7 @@
 const { Markup } = require('telegraf');
-const { getAvailableAccounts, getAccountById } = require('../../services/inventory');
+const { getAvailableAccounts } = require('../../services/inventory');
 const { upsertUser } = require('../../services/user');
+const { config } = require('../../config');
 
 const buySessions = new Map();
 
@@ -63,32 +64,6 @@ async function handleShopPage(ctx) {
   await sendAccountList(ctx, accounts, page);
 }
 
-async function handleBuyConfirm(ctx) {
-  const accountId = parseInt(ctx.match[1]);
-  const account = getAccountById(accountId);
-
-  if (!account || account.status !== 'available') {
-    await ctx.answerCbQuery('❌ Tài khoản này đã bán hoặc không tồn tại!');
-    return;
-  }
-
-  await ctx.answerCbQuery();
-  await ctx.reply(
-    `📦 *Xác nhận mua hàng*\n\n` +
-    `🆔 ID: \`${account.id}\`\n` +
-    (account.note ? `📝 Ghi chú: ${account.note}\n` : '') +
-    `💰 Giá: *${account.price.toLocaleString('vi-VN')}đ*\n\n` +
-    `Bạn có muốn tiến hành thanh toán không?`,
-    {
-      parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('✅ Xác nhận mua', `confirm_buy:${accountId}`)],
-        [Markup.button.callback('❌ Huỷ', 'cancel_buy')],
-      ]),
-    }
-  );
-}
-
 async function handleBuyQuantity(ctx) {
   await ctx.answerCbQuery();
   const accounts = getAvailableAccounts();
@@ -99,10 +74,21 @@ async function handleBuyQuantity(ctx) {
 
   buySessions.set(ctx.from.id, { step: 'enter_qty' });
 
+  // Hiển thị bảng chiết khấu trước khi yêu cầu nhập số lượng
+  const { tiers } = config.discount;
+  let tierText = '';
+  if (tiers && tiers.length > 0) {
+    const sorted = [...tiers].sort((a, b) => a.minQty - b.minQty);
+    tierText = `\n📊 *Bảng chiết khấu:*\n` +
+      sorted.map(t => `  • Mua >${t.minQty} sp: giảm *${t.percent}%*`).join('\n') +
+      '\n';
+  }
+
   await ctx.reply(
     `🔢 *Mua theo số lượng*\n\n` +
-    `📦 Kho còn: *${accounts.length} tài khoản*\n\n` +
-    `Nhập số lượng bạn muốn mua:\n` +
+    `📦 Kho còn: *${accounts.length} tài khoản*\n` +
+    tierText +
+    `\nNhập số lượng bạn muốn mua:\n` +
     `_(Gửi /cancel để huỷ)_`,
     { parse_mode: 'Markdown' }
   );
@@ -144,9 +130,5 @@ async function handleBuyQtyTextInput(ctx, next) {
   return handleConfirmBulkBuy(ctx);
 }
 
-async function handleCancelBuy(ctx) {
-  await ctx.answerCbQuery('Đã huỷ');
-  await ctx.deleteMessage();
-}
+module.exports = { handleShop, handleShopPage, handleBuyQuantity, handleBuyQtyTextInput, clearSession: (userId) => buySessions.delete(userId) };
 
-module.exports = { handleShop, handleShopPage, handleBuyConfirm, handleBuyQuantity, handleBuyQtyTextInput, handleCancelBuy };

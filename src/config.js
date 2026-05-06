@@ -20,9 +20,22 @@ const config = {
     expiryMinutes: parseInt(process.env.ORDER_EXPIRY_MINUTES) || 15,
   },
   discount: {
-    // Mua >= minQty thì được chiết khấu discountPerItem mỗi sản phẩm
-    minQty: parseInt(process.env.DISCOUNT_MIN_QTY) || 5,
-    discountPerItem: parseInt(process.env.DISCOUNT_PER_ITEM) || 0,
+    // Chiết khấu theo bậc: mảng các mức [{minQty, percent}], sắp xếp tăng dần theo minQty
+    // Ví dụ env: DISCOUNT_TIERS=[{"minQty":5,"percent":5},{"minQty":10,"percent":10},{"minQty":20,"percent":15}]
+    tiers: (() => {
+      try {
+        const raw = process.env.DISCOUNT_TIERS;
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        // Sắp xếp giảm dần để dễ tìm mức cao nhất áp dụng được
+        return parsed
+          .filter(t => typeof t.minQty === 'number' && typeof t.percent === 'number')
+          .sort((a, b) => b.minQty - a.minQty);
+      } catch {
+        return [];
+      }
+    })(),
   },
 };
 

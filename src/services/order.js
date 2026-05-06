@@ -15,11 +15,11 @@ function createBulkOrderFromBalance({ telegramId, quantity }) {
 
     const totalOriginal = accounts.reduce((sum, a) => sum + a.price, 0);
 
-    // Tính chiết khấu khi mua số lượng đủ điều kiện
-    const { minQty, discountPerItem } = config.discount;
-    const discountTotal = (quantity >= minQty && discountPerItem > 0)
-      ? discountPerItem * quantity
-      : 0;
+    // Tính chiết khấu theo bậc: tìm mức cao nhất đú điều kiện (quantity > minQty)
+    const { tiers } = config.discount;
+    const matchedTier = (tiers || []).find(t => quantity > t.minQty) || null;
+    const discountPercent = matchedTier ? matchedTier.percent : 0;
+    const discountTotal = Math.round(totalOriginal * discountPercent / 100);
     const totalPrice = totalOriginal - discountTotal;
 
     if (user.balance < totalPrice) throw new Error('INSUFFICIENT_BALANCE');
@@ -37,7 +37,7 @@ function createBulkOrderFromBalance({ telegramId, quantity }) {
       orders.push({ orderId: result.lastInsertRowid, account });
     }
 
-    return { orders, totalPrice, totalOriginal, discountTotal };
+    return { orders, totalPrice, totalOriginal, discountTotal, discountPercent };
   });
 
   return tx();
@@ -88,7 +88,7 @@ function cancelExpiredDeposits() {
 
 function getUserOrders(telegramId) {
   return db.prepare(`
-    SELECT o.id, o.amount, o.status, o.created_at, o.paid_at, a.login, a.note
+    SELECT o.id, o.amount, o.status, o.created_at, o.paid_at, a.login, a.password, a.note
     FROM orders o
     JOIN users u ON o.user_id = u.id
     LEFT JOIN accounts a ON o.account_id = a.id
@@ -115,6 +115,12 @@ function getStats() {
     paidOrders: db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'paid'`).get().c,
     totalRevenue: db.prepare(`SELECT COALESCE(SUM(amount),0) as s FROM orders WHERE status = 'paid'`).get().s,
     pendingOrders: 0,
+    // Thống kê hôm nay
+    todayOrders: db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'paid' AND date(paid_at) = date('now','localtime')`).get().c,
+    todayRevenue: db.prepare(`SELECT COALESCE(SUM(amount),0) as s FROM orders WHERE status = 'paid' AND date(paid_at) = date('now','localtime')`).get().s,
+    // Thống kê tháng này
+    monthOrders: db.prepare(`SELECT COUNT(*) as c FROM orders WHERE status = 'paid' AND strftime('%Y-%m', paid_at) = strftime('%Y-%m', 'now','localtime')`).get().c,
+    monthRevenue: db.prepare(`SELECT COALESCE(SUM(amount),0) as s FROM orders WHERE status = 'paid' AND strftime('%Y-%m', paid_at) = strftime('%Y-%m', 'now','localtime')`).get().s,
   };
 }
 

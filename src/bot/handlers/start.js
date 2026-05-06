@@ -1,11 +1,22 @@
-﻿const { Markup } = require('telegraf');
+const { Markup } = require('telegraf');
 const { upsertUser } = require('../../services/user');
 const { countAvailable } = require('../../services/inventory');
 const { getBalance } = require('../../services/wallet');
 
+// Import lazy để tránh circular dependency
+function clearUserSessions(userId) {
+  // Xóa session buy qty trong shop.js
+  try { require('./shop').clearSession && require('./shop').clearSession(userId); } catch {}
+  // Xóa session deposit trong wallet.js
+  try { require('./wallet').clearSession && require('./wallet').clearSession(userId); } catch {}
+}
+
 async function handleStart(ctx) {
   const { id, username, first_name, last_name } = ctx.from;
   upsertUser({ telegramId: id, username, fullName: [first_name, last_name].filter(Boolean).join(' ') });
+
+  // Xóa mọi session đang chờ để tránh user bị stuck
+  clearUserSessions(id);
 
   const available = countAvailable();
   const balance = getBalance(id);
@@ -37,3 +48,4 @@ async function handleHelp(ctx) {
 }
 
 module.exports = { handleStart, handleHelp };
+

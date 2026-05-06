@@ -1,4 +1,4 @@
-﻿const db = require('../db/index');
+const db = require('../db/index');
 
 function generateDepositContent() {
   const ts = Date.now().toString(36).toUpperCase();
@@ -26,7 +26,7 @@ function createDeposit(telegramId, amount) {
 
 function getDepositByContent(transferContent) {
   return db.prepare(`
-    SELECT d.*, u.telegram_id
+    SELECT d.*, u.telegram_id, u.username
     FROM deposits d
     JOIN users u ON d.user_id = u.id
     WHERE d.transfer_content = ?
@@ -67,6 +67,14 @@ function getDepositHistory(telegramId) {
 }
 
 function adminAdjustBalance(telegramId, amount) {
+  // Nếu trừ tiền, kiểm tra đủ số dư trước
+  if (amount < 0) {
+    const user = db.prepare(`SELECT balance FROM users WHERE telegram_id = ?`).get(telegramId);
+    if (!user) throw new Error(`Không tìm thấy user với ID ${telegramId}`);
+    if (user.balance + amount < 0) {
+      throw new Error(`Số dư không đủ. Hiện có: ${user.balance.toLocaleString('vi-VN')}đ, cần trừ: ${Math.abs(amount).toLocaleString('vi-VN')}đ`);
+    }
+  }
   const result = db.prepare(`UPDATE users SET balance = balance + ? WHERE telegram_id = ?`).run(amount, telegramId);
   if (result.changes === 0) throw new Error(`Không tìm thấy user với ID ${telegramId}`);
 }

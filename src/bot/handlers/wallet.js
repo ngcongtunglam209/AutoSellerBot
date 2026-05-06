@@ -1,4 +1,4 @@
-﻿const { Markup } = require('telegraf');
+const { Markup } = require('telegraf');
 const { getBalance, createDeposit, getDepositHistory } = require('../../services/wallet');
 const { upsertUser } = require('../../services/user');
 const { config } = require('../../config');
@@ -97,4 +97,5 @@ async function handleDepositTextInput(ctx, next) {
   );
 }
 
-module.exports = { handleWallet, handleDepositStart, handleDepositHistory, handleDepositTextInput };
+module.exports = { handleWallet, handleDepositStart, handleDepositHistory, handleDepositTextInput, clearSession: (userId) => depositSessions.delete(userId) };
+
