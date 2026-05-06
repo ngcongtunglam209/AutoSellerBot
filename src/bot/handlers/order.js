@@ -3,6 +3,7 @@ const { getAccountById, getAvailableAccounts } = require('../../services/invento
 const { createOrderFromBalance, createBulkOrderFromBalance } = require('../../services/order');
 const { getBalance } = require('../../services/wallet');
 const { config } = require('../../config');
+const { safeMd } = require('../../utils/escape');
 
 let botInstance = null;
 function setOrderBot(bot) { botInstance = bot; }
@@ -31,7 +32,7 @@ async function handleConfirmBuy(ctx) {
 
   await ctx.reply(
     `📦 *Xác nhận mua hàng*\n\n` +
-    (account.note ? `📝 ${account.note}\n` : '') +
+    (account.note ? `📝 ${safeMd(account.note)}\n` : '') +
     `💰 Giá: *${account.price.toLocaleString('vi-VN')}đ*\n` +
     `💳 Số dư của bạn: *${balance.toLocaleString('vi-VN')}đ*\n` +
     (lack > 0 ? `⚠️ Thiếu: *${lack.toLocaleString('vi-VN')}đ*` : `✅ Số dư đủ`),
@@ -78,9 +79,9 @@ async function handleDoBuy(ctx) {
   await ctx.reply(
     `✅ *Mua hàng thành công! #${orderId}*\n\n` +
     `📦 *Thông tin tài khoản:*\n` +
-    `🔑 Login: \`${account.login}\`\n` +
-    `🔒 Password: \`${account.password}\`\n` +
-    (account.note ? `📝 Ghi chú: ${account.note}\n` : '') +
+    `🔑 Login: \`${safeMd(account.login)}\`\n` +
+    `🔒 Password: \`${safeMd(account.password)}\`\n` +
+    (account.note ? `📝 Ghi chú: ${safeMd(account.note)}\n` : '') +
     `\n💳 Số dư còn lại: *${newBalance.toLocaleString('vi-VN')}đ*`,
     { parse_mode: 'Markdown' }
   );
@@ -100,8 +101,8 @@ async function handleDoBuy(ctx) {
 
   await notifyAdmins(
     `🛒 *ĐƠN HÀNG MỚI #${orderId}*\n\n` +
-    `👤 Khách: ${username}\n` +
-    `🔑 Account: \`${account.login}\`\n` +
+    `👤 Khách: ${safeMd(username)}\n` +
+    `🔑 Account: \`${safeMd(account.login)}\`\n` +
     `💰 Giá: *${account.price.toLocaleString('vi-VN')}đ*\n` +
     `💳 Số dư còn lại của khách: ${newBalance.toLocaleString('vi-VN')}đ`
   );
@@ -217,9 +218,9 @@ async function handleDoBuyBulk(ctx) {
   let replyText = `✅ *Mua ${orders.length} tài khoản thành công!*\n\n📦 *Danh sách tài khoản:*\n`;
   for (const { orderId, account } of orders) {
     replyText += `\n*— Đơn #${orderId} —*\n`;
-    replyText += `🔑 Login: \`${account.login}\`\n`;
-    replyText += `🔒 Password: \`${account.password}\`\n`;
-    if (account.note) replyText += `📝 ${account.note}\n`;
+    replyText += `🔑 Login: \`${safeMd(account.login)}\`\n`;
+    replyText += `🔒 Password: \`${safeMd(account.password)}\`\n`;
+    if (account.note) replyText += `📝 ${safeMd(account.note)}\n`;
   }
   replyText += `\n💰 Giá gốc: *${totalOriginal.toLocaleString('vi-VN')}đ*\n`;
   if (discountTotal > 0) {
@@ -246,9 +247,9 @@ async function handleDoBuyBulk(ctx) {
   );
 
   await notifyAdmins(
-    `🛒 *ĐƠN HÀNG MỚI (x${orders.length}) — ${username}*\n\n` +
+    `🛒 *ĐƠN HÀNG MỚI (x${orders.length}) — ${safeMd(username)}*\n\n` +
     orders.map(({ orderId, account }) =>
-      `#${orderId}: \`${account.login}\` — ${account.price.toLocaleString('vi-VN')}đ`
+      `#${orderId}: \`${safeMd(account.login)}\` — ${account.price.toLocaleString('vi-VN')}đ`
     ).join('\n') +
     `\n\n💰 Giá gốc: *${totalOriginal.toLocaleString('vi-VN')}đ*` +
     (discountTotal > 0
@@ -266,8 +267,8 @@ async function handleDoBuyBulk(ctx) {
 }
 
 async function handleCancelBuy(ctx) {
-  await ctx.answerCbQuery('Đã huỷ');
-  await ctx.deleteMessage();
+  await ctx.answerCbQuery('Đã huỷ').catch(() => {});
+  await ctx.deleteMessage().catch(() => {}); // bỏ qua nếu tin nhắn đã bị xóa/hết hạn
 }
 
 module.exports = { handleConfirmBuy, handleDoBuy, handleCancelBuy, handleConfirmBulkBuy, handleDoBuyBulk, setOrderBot };

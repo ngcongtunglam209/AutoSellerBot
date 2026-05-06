@@ -7,6 +7,7 @@ const {
 const { getAllOrders, getStats } = require('../../services/order');
 const { adminAdjustBalance } = require('../../services/wallet');
 const { notifyAllUsers } = require('../../services/broadcast');
+const { safeMd } = require('../../utils/escape');
 
 const adminSessions = new Map();
 
@@ -81,8 +82,8 @@ async function handleAdminInventory(ctx) {
   const slice = accounts.slice(0, 20);
   for (const acc of slice) {
     const status = acc.status === 'available' ? '🟢' : '🔴';
-    text += `${status} *#${acc.id}* \`${acc.login}\` — ${acc.price.toLocaleString('vi-VN')}đ`;
-    if (acc.note) text += ` — ${acc.note}`;
+    text += `${status} *#${acc.id}* \`${safeMd(acc.login)}\` — ${acc.price.toLocaleString('vi-VN')}đ`;
+    if (acc.note) text += ` — ${safeMd(acc.note)}`;
     text += '\n';
   }
   if (accounts.length > 20) text += `\n...và ${accounts.length - 20} tài khoản khác.`;
@@ -108,7 +109,7 @@ async function handleAdminOrders(ctx) {
 
   for (const o of orders.slice(0, 20)) {
     const emoji = STATUS_EMOJI[o.status] || '❓';
-    text += `${emoji} *#${o.id}* @${o.username || o.telegram_id} — ${o.amount.toLocaleString('vi-VN')}đ\n`;
+    text += `${emoji} *#${o.id}* ${safeMd(o.username ? '@' + o.username : '#' + o.telegram_id)} — ${o.amount.toLocaleString('vi-VN')}đ\n`;
     text += `   ${o.created_at}\n`;
   }
 
@@ -348,12 +349,12 @@ async function handleAdminSoldItems(ctx) {
 
   let text = `💸 *Hàng đã bán (${sold.length} gần nhất)*\n\n`;
   for (const item of sold) {
-    const buyer = item.username ? `@${item.username}` : `#${item.telegram_id}`;
+    const buyer = safeMd(item.username ? `@${item.username}` : `#${item.telegram_id}`);
     text += `*— Đơn #${item.order_id} —*\n`;
     text += `👤 Khách: ${buyer}\n`;
-    text += `🔑 Login: \`${item.login}\`\n`;
-    text += `🔒 Pass: \`${item.password}\`\n`;
-    if (item.note) text += `📝 ${item.note}\n`;
+    text += `🔑 Login: \`${safeMd(item.login)}\`\n`;
+    text += `🔒 Pass: \`${safeMd(item.password)}\`\n`;
+    if (item.note) text += `📝 ${safeMd(item.note)}\n`;
     text += `💰 Giá: *${item.price.toLocaleString('vi-VN')}đ* | 📅 ${item.created_at}\n\n`;
   }
 
