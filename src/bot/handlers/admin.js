@@ -317,7 +317,7 @@ async function handleAdminUsers(ctx) {
 
   let text = `👥 *Danh sách user (top 20 theo số dư)*\n\n`;
   for (const u of users) {
-    const name = u.username ? `@${u.username}` : (u.full_name || `#${u.telegram_id}`);
+    const name = safeMd(u.username ? `@${u.username}` : (u.full_name || `#${u.telegram_id}`));
     text += `• ${name} — 💰 *${u.balance.toLocaleString('vi-VN')}đ*\n`;
     text += `  ID: \`${u.telegram_id}\`\n`;
   }

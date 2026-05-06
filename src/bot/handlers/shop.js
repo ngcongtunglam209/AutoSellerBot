@@ -2,6 +2,7 @@ const { Markup } = require('telegraf');
 const { getAvailableAccounts } = require('../../services/inventory');
 const { upsertUser } = require('../../services/user');
 const { config } = require('../../config');
+const { safeMd } = require('../../utils/escape');
 
 const buySessions = new Map();
 
@@ -29,7 +30,7 @@ async function sendAccountList(ctx, accounts, page) {
 
   slice.forEach((acc, i) => {
     text += `*${start + i + 1}.* ID: \`${acc.id}\` — 💰 ${acc.price.toLocaleString('vi-VN')}đ`;
-    if (acc.note) text += ` — ${acc.note}`;
+    if (acc.note) text += ` — ${safeMd(acc.note)}`;
     text += '\n';
   });
 

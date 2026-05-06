@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDepositByContent, confirmDeposit, getBalance } = require('../services/wallet');
 const { config } = require('../config');
+const { safeMd } = require('../utils/escape');
 
 let botInstance = null;
 let notifyAdmins = null;
@@ -59,7 +60,7 @@ router.post('/sepay', async (req, res) => {
 
       // Thông báo cho admin
       if (notifyAdmins) {
-        const username = deposit.username ? `@${deposit.username}` : `#${deposit.telegram_id}`;
+        const username = safeMd(deposit.username ? `@${deposit.username}` : `#${deposit.telegram_id}`);
         await notifyAdmins(
           `💵 *KHÁCH NẠP TIỀN*\n\n` +
           `👤 Khách: ${username}\n` +
