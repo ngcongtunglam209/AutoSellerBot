@@ -20,7 +20,7 @@ function setBotInstance(bot) {
 router.post('/sepay', async (req, res) => {
   try {
     // Validate API key header — chặn request giả mạo
-    const incomingKey = (req.headers['x-api-key'] || req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+    const incomingKey = (req.headers['x-api-key'] || req.headers['authorization'] || '').replace(/^(Bearer|Apikey)\s+/i, '').trim();
     const expectedKey = config.sepay.apiKey;
     if (!incomingKey || incomingKey !== expectedKey) {
       const maskedIncoming = incomingKey ? `${incomingKey.slice(0, 4)}...${incomingKey.slice(-4)}` : '(none)';
