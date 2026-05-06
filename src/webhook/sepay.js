@@ -20,10 +20,12 @@ function setBotInstance(bot) {
 router.post('/sepay', async (req, res) => {
   try {
     // Validate API key header — chặn request giả mạo
-    const incomingKey = req.headers['x-api-key'] || req.headers['authorization'];
+    const incomingKey = (req.headers['x-api-key'] || req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
     const expectedKey = config.sepay.apiKey;
     if (!incomingKey || incomingKey !== expectedKey) {
-      console.warn('[Webhook] Rejected request — invalid API key');
+      const maskedIncoming = incomingKey ? `${incomingKey.slice(0, 4)}...${incomingKey.slice(-4)}` : '(none)';
+      const maskedExpected = expectedKey ? `${expectedKey.slice(0, 4)}...${expectedKey.slice(-4)}` : '(not set)';
+      console.warn(`[Webhook] Rejected request — invalid API key | got: ${maskedIncoming} | expected: ${maskedExpected}`);
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
