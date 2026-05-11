@@ -5,10 +5,10 @@ const db = require('../db/index');
 const NEW_BOT = '@lamtungshop_v2bot';
 
 const REDIRECT_MESSAGE =
-  `🔔 *Bot này đã ngừng hoạt động\\!*\n\n` +
+  `🔔 *Bot này đã ngừng hoạt động!*\n\n` +
   `Vui lòng chuyển sang bot mới của chúng tôi:\n` +
   `👉 ${NEW_BOT}\n\n` +
-  `Cảm ơn bạn đã sử dụng dịch vụ\\!`;
+  `Cảm ơn bạn đã sử dụng dịch vụ!`;
 
 async function broadcastMigration(bot) {
   let rows = [];
@@ -26,10 +26,11 @@ async function broadcastMigration(bot) {
   for (const row of rows) {
     try {
       await bot.telegram.sendMessage(row.telegram_id, REDIRECT_MESSAGE, {
-        parse_mode: 'MarkdownV2',
+        parse_mode: 'Markdown',
       });
       success++;
-    } catch {
+    } catch (err) {
+      console.warn(`[Broadcast] Gửi thất bại tới ${row.telegram_id}:`, err.message);
       failed++;
     }
     // Tránh bị Telegram rate-limit
@@ -45,7 +46,7 @@ function createBot() {
   // Middleware: tất cả update đều trả về thông báo chuyển bot
   bot.use(async (ctx) => {
     try {
-      await ctx.reply(REDIRECT_MESSAGE, { parse_mode: 'MarkdownV2' });
+      await ctx.reply(REDIRECT_MESSAGE, { parse_mode: 'Markdown' });
     } catch {
       // Bỏ qua lỗi gửi tin (ví dụ callback_query cũ, channel post, ...)
       try {
